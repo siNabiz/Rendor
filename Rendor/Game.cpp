@@ -8,6 +8,7 @@
 extern void ExitGame();
 
 using namespace DirectX;
+using namespace DirectX::SimpleMath;
 
 using Microsoft::WRL::ComPtr;
 
@@ -34,6 +35,9 @@ void Game::Initialize(HWND window, int width, int height)
     m_timer.SetFixedTimeStep(true);
     m_timer.SetTargetElapsedSeconds(1.0 / 60);
     */
+
+    // for gamepad controller
+    m_gamePad = std::make_unique<GamePad>();
 }
 
 #pragma region Frame Update
@@ -55,6 +59,27 @@ void Game::Update(DX::StepTimer const& timer)
 
     // TODO: Add your game logic here.
     elapsedTime;
+
+    // for gamepad controller
+    auto state = m_gamePad->GetState(0);
+
+    if (state.IsConnected())
+    {
+        if (state.IsViewPressed())
+        {
+            ExitGame();
+        }
+
+        m_buttons.Update(state);
+        if (m_buttons.a == GamePad::ButtonStateTracker::PRESSED)
+        {
+            // A was up last frame, it just went down this frame
+        }
+        if (m_buttons.b == GamePad::ButtonStateTracker::RELEASED)
+        {
+            // B was down last frame, it just went up this frame
+        }
+    }
 }
 #pragma endregion
 
@@ -109,6 +134,9 @@ void Game::Clear()
 void Game::OnActivated()
 {
     // TODO: Game is becoming active window.
+
+    m_gamePad->Resume();
+    m_buttons.Reset();
 }
 
 void Game::OnDeactivated()
@@ -119,6 +147,8 @@ void Game::OnDeactivated()
 void Game::OnSuspending()
 {
     // TODO: Game is being power-suspended (or minimized).
+
+    m_gamePad->Suspend();
 }
 
 void Game::OnResuming()
@@ -126,6 +156,8 @@ void Game::OnResuming()
     m_timer.ResetElapsedTime();
 
     // TODO: Game is being power-resumed (or returning from minimize).
+
+    m_buttons.Reset();
 }
 
 void Game::OnWindowMoved()

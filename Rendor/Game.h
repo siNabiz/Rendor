@@ -52,4 +52,9 @@ private:
 
     // Rendering loop timer.
     DX::StepTimer                           m_timer;
+     
+    // For gamepad controller
+    std::unique_ptr<DirectX::GamePad> m_gamePad;
+
+    DirectX::GamePad::ButtonStateTracker m_buttons;
 };

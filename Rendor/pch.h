@@ -53,6 +53,9 @@
 #include <dxgidebug.h>
 #endif
 
+#include "SimpleMath.h"
+#include "GamePad.h"
+
 namespace DX
 {
     // Helper class for COM exceptions
