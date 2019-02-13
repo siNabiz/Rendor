@@ -4,6 +4,15 @@
 
 #include "pch.h"
 #include "Game.h"
+#include <iostream>
+
+#if _DEBUG
+#include "VertexShader_d.h"
+#include "PixelShader_d.h"
+#else
+#include "VertexShader.h"
+#include "PixelShader.h"
+#endif
 
 extern void ExitGame();
 
@@ -11,6 +20,33 @@ using namespace DirectX;
 using namespace DirectX::SimpleMath;
 
 using Microsoft::WRL::ComPtr;
+
+typedef struct _constantBufferStruct 
+{
+    XMFLOAT4 Color;
+} ConstantBufferStruct;
+
+ConstantBufferStruct g_baseColorValue = 
+{ 
+    XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f)
+};
+
+typedef struct _vertexBufferStruct
+{
+    XMFLOAT3 Position;
+} VertexBufferStruct;
+
+VertexBufferStruct g_triangleNDCVertices[3] =
+{
+    XMFLOAT3(0.25f, 0.25f, 0.0f),
+    XMFLOAT3(0.75f, 0.25f, 0.0f),
+    XMFLOAT3(0.5f, 0.75f, 0.0f)
+};
+
+WORD g_indices[3] =
+{
+    0, 2, 1
+};
 
 Game::Game() noexcept(false)
 {
@@ -99,7 +135,20 @@ void Game::Render()
     auto context = m_deviceResources->GetD3DDeviceContext();
 
     // TODO: Add your rendering code here.
-    context;
+    context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+
+    const UINT vertexStride = sizeof(g_triangleNDCVertices);
+    const UINT vertexOffset = 0;
+    context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &vertexStride, &vertexOffset);
+    context->IASetInputLayout(m_inputLayout.Get());
+    context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &g_baseColorValue, 0, 0);
+    context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+
+    context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
 
     m_deviceResources->PIXEndEvent();
 
@@ -121,9 +170,15 @@ void Game::Clear()
     context->ClearDepthStencilView(depthStencil, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     context->OMSetRenderTargets(1, &renderTarget, depthStencil);
 
+    // Set the depth/stencil state
+    context->OMSetDepthStencilState(m_depthStencilState.Get(), 0);
+
     // Set the viewport.
     auto viewport = m_deviceResources->GetScreenViewport();
     context->RSSetViewports(1, &viewport);
+
+    // Set the rasterizer state
+    context->RSSetState(m_rasterizerState.Get());
 
     m_deviceResources->PIXEndEvent();
 }
@@ -192,7 +247,128 @@ void Game::CreateDeviceDependentResources()
     auto device = m_deviceResources->GetD3DDevice();
 
     // TODO: Initialize device dependent objects here (independent of window size).
-    device;
+    HRESULT hr = 0;
+
+    // Create vertex shader
+    hr = device->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &m_vertexShader);
+    if (FAILED(hr))
+    {
+        std::cerr << "Vertex Shader!" << std::endl;
+    }
+
+    // Create vertex shader input layout
+    D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(VertexBufferStruct,Position), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+    };
+
+    hr = device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout);
+    if (FAILED(hr))
+    {
+        std::cerr << "Layout!" << std::endl;
+    }
+
+    // Setup constant buffer
+    {
+        D3D11_BUFFER_DESC constantBufferDesc;
+        ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        constantBufferDesc.ByteWidth = sizeof(g_baseColorValue);
+        constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = &g_baseColorValue;
+
+        hr = device->CreateBuffer(&constantBufferDesc, &resourceData, &m_constantBuffer);
+        if (FAILED(hr))
+        {
+            std::cerr << "Constant Buffer!" << std::endl;
+        }
+    }
+
+    // Setup vertex buffer
+    {
+        D3D11_BUFFER_DESC vertexBufferDesc;
+        ZeroMemory(&vertexBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        vertexBufferDesc.ByteWidth = sizeof(g_triangleNDCVertices);
+        vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = g_triangleNDCVertices;
+
+        hr = device->CreateBuffer(&vertexBufferDesc, &resourceData, &m_vertexBuffer);
+        if (FAILED(hr))
+        {
+            std::cerr << "Vertex Buffer!" << std::endl;
+        }
+    }
+
+    // Setup index buffer
+    {
+        D3D11_BUFFER_DESC indexBufferDesc;
+        ZeroMemory(&indexBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        indexBufferDesc.ByteWidth = sizeof(g_indices);
+        indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = g_indices;
+
+        hr = device->CreateBuffer(&indexBufferDesc, &resourceData, &m_indexBuffer);
+        if (FAILED(hr))
+        {
+            std::cerr << "Index Buffer!" << std::endl;
+        }
+    }
+
+    // Setup rasterizer state
+    {
+        D3D11_RASTERIZER_DESC rasterizerStateDesc;
+        ZeroMemory(&rasterizerStateDesc, sizeof(D3D11_RASTERIZER_DESC));
+        rasterizerStateDesc.FillMode = D3D11_FILL_SOLID;
+        rasterizerStateDesc.CullMode = D3D11_CULL_BACK;
+        rasterizerStateDesc.FrontCounterClockwise = TRUE;
+        rasterizerStateDesc.DepthBias = 0;
+        rasterizerStateDesc.DepthBiasClamp = 0.0f;
+        rasterizerStateDesc.SlopeScaledDepthBias = 0.0f;
+        rasterizerStateDesc.DepthClipEnable = TRUE;
+        rasterizerStateDesc.ScissorEnable = FALSE;
+        rasterizerStateDesc.MultisampleEnable = FALSE;
+        rasterizerStateDesc.AntialiasedLineEnable = FALSE;
+
+        hr = device->CreateRasterizerState(&rasterizerStateDesc, &m_rasterizerState);
+        if (FAILED(hr))
+        {
+            std::cerr << "Rasterizer State!" << std::endl;
+        }
+    }
+
+    // Setup depth/stencil state
+    {
+        D3D11_DEPTH_STENCIL_DESC depthStencilStateDesc;
+        ZeroMemory(&depthStencilStateDesc, sizeof(D3D11_DEPTH_STENCIL_DESC));
+        depthStencilStateDesc.DepthEnable = TRUE;
+        depthStencilStateDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        depthStencilStateDesc.DepthFunc = D3D11_COMPARISON_LESS;
+        depthStencilStateDesc.StencilEnable = FALSE;
+
+        hr = device->CreateDepthStencilState(&depthStencilStateDesc, &m_depthStencilState);
+        if (FAILED(hr))
+        {
+            std::cerr << "Depth/Stencil State!" << std::endl;
+        }
+    }
+
+    // Setup pixel shader
+    hr = device->CreatePixelShader(g_PixelShader, sizeof(g_PixelShader), nullptr, &m_pixelShader);
+    if (FAILED(hr))
+    {
+        std::cerr << "Pixel Shader!" << std::endl;
+    }
 }
 
 // Allocate all memory resources that change on a window SizeChanged event.

@@ -55,6 +55,7 @@
 
 #include "SimpleMath.h"
 #include "GamePad.h"
+#include "VertexTypes.h"
 
 namespace DX
 {

@@ -55,6 +55,22 @@ private:
      
     // For gamepad controller
     std::unique_ptr<DirectX::GamePad> m_gamePad;
-
     DirectX::GamePad::ButtonStateTracker m_buttons;
+
+    // For vertex shader
+    Microsoft::WRL::ComPtr <ID3D11VertexShader> m_vertexShader;
+    Microsoft::WRL::ComPtr <ID3D11InputLayout> m_inputLayout;
+    Microsoft::WRL::ComPtr <ID3D11Buffer> m_constantBuffer;
+    Microsoft::WRL::ComPtr <ID3D11Buffer> m_vertexBuffer;
+    Microsoft::WRL::ComPtr <ID3D11Buffer> m_indexBuffer;
+
+    // For pixel shader
+    Microsoft::WRL::ComPtr <ID3D11PixelShader> m_pixelShader;
+    Microsoft::WRL::ComPtr <ID3D11InputLayout> m_pixelShaderInputLayout;
+
+    // For rasterizer state
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizerState;
+
+    // For depth/stencil state
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthStencilState;
 };
