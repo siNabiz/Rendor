@@ -21,27 +21,28 @@ using namespace DirectX::SimpleMath;
 
 using Microsoft::WRL::ComPtr;
 
-typedef struct _constantBufferStruct 
-{
-    XMFLOAT4 Color;
-} ConstantBufferStruct;
-
-ConstantBufferStruct g_baseColorValue =
-{
-    XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f)
-};
+//typedef struct _constantBufferStruct 
+//{
+//    XMFLOAT3 Color;
+//} ConstantBufferStruct;
+//
+//ConstantBufferStruct g_baseColorValue =
+//{
+//    XMFLOAT3(1.0f, 0.0f, 1.0f)
+//};
 
 typedef struct _vertexBufferStruct
 {
     XMFLOAT3 Position;
+    XMFLOAT3 Color;
 } VertexBufferStruct;
 
 VertexBufferStruct g_triangleNDCVertices[4] =
 {
-    XMFLOAT3(-0.5f, -0.5f, 0.0f),
-    XMFLOAT3(0.5f, -0.5f, 0.0f),
-    XMFLOAT3(0.5f, 0.5f, 0.0f),
-    XMFLOAT3(-0.5f, 0.5f, 0.0f)
+    XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f),
+    XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f),
+    XMFLOAT3(0.5f, 0.5f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f),
+    XMFLOAT3(-0.5f, 0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 1.0f)
 };
 
 WORD g_indices[6] =
@@ -149,10 +150,10 @@ void Game::Render()
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     
-    ConstantBufferStruct constantBuffer;
-    double colorValue = (1 + sin(m_timer.GetTotalSeconds())) * 0.5f;
-    constantBuffer.Color = XMFLOAT4(1.0f, 0, colorValue, 1.0f);
-    context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &constantBuffer, 0, 0);
+    //ConstantBufferStruct constantBuffer;
+    //double colorValue = (1 + sin(m_timer.GetTotalSeconds())) * 0.5f;
+    //constantBuffer.Color = XMFLOAT3(1.0f, 0, colorValue);
+    //context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &constantBuffer, 0, 0);
     context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
 
     context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
@@ -266,7 +267,8 @@ void Game::CreateDeviceDependentResources()
     // Create vertex shader input layout
     D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(VertexBufferStruct,Position), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(VertexBufferStruct,Position), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(VertexBufferStruct,Color), D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
 
     hr = device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout);
@@ -276,23 +278,23 @@ void Game::CreateDeviceDependentResources()
     }
 
     // Setup constant buffer
-    {
-        D3D11_BUFFER_DESC constantBufferDesc;
-        ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        constantBufferDesc.ByteWidth = sizeof(ConstantBufferStruct); // one element only
-        constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-        constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    //{
+    //    D3D11_BUFFER_DESC constantBufferDesc;
+    //    ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
+    //    constantBufferDesc.ByteWidth = sizeof(ConstantBufferStruct); // one element only
+    //    constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    //    constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
-        D3D11_SUBRESOURCE_DATA resourceData;
-        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
-        resourceData.pSysMem = &g_baseColorValue;
+    //    D3D11_SUBRESOURCE_DATA resourceData;
+    //    ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+    //    resourceData.pSysMem = &g_baseColorValue;
 
-        hr = device->CreateBuffer(&constantBufferDesc, &resourceData, &m_constantBuffer);
-        if (FAILED(hr))
-        {
-            std::cerr << "Constant Buffer!" << std::endl;
-        }
-    }
+    //    hr = device->CreateBuffer(&constantBufferDesc, &resourceData, &m_constantBuffer);
+    //    if (FAILED(hr))
+    //    {
+    //        std::cerr << "Constant Buffer!" << std::endl;
+    //    }
+    //}
 
     // Setup vertex buffer
     {
