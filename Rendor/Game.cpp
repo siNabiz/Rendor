@@ -36,16 +36,18 @@ typedef struct _vertexBufferStruct
     XMFLOAT3 Position;
 } VertexBufferStruct;
 
-VertexBufferStruct g_triangleNDCVertices[3] =
+VertexBufferStruct g_triangleNDCVertices[4] =
 {
-    XMFLOAT3(-1.0f, -1.0f, 0.0f),
-    XMFLOAT3(1.0f, -1.0f, 0.0f),
-    XMFLOAT3(0.0f, 1.0f, 0.0f)
+    XMFLOAT3(-0.5f, -0.5f, 0.0f),
+    XMFLOAT3(0.5f, -0.5f, 0.0f),
+    XMFLOAT3(0.5f, 0.5f, 0.0f),
+    XMFLOAT3(-0.5f, 0.5f, 0.0f)
 };
 
-WORD g_indices[3] =
+WORD g_indices[6] =
 {
-    0, 2, 1
+    0, 2, 1,
+    0, 3, 2
 };
 
 Game::Game() noexcept(false)
@@ -330,7 +332,7 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_RASTERIZER_DESC rasterizerStateDesc;
         ZeroMemory(&rasterizerStateDesc, sizeof(D3D11_RASTERIZER_DESC));
-        rasterizerStateDesc.FillMode = D3D11_FILL_SOLID;
+        rasterizerStateDesc.FillMode = D3D11_FILL_WIREFRAME;//D3D11_FILL_SOLID;
         rasterizerStateDesc.CullMode = D3D11_CULL_BACK;
         rasterizerStateDesc.FrontCounterClockwise = FALSE;
         rasterizerStateDesc.DepthBias = 0;
