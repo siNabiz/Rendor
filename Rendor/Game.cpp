@@ -26,8 +26,8 @@ typedef struct _constantBufferStruct
     XMFLOAT4 Color;
 } ConstantBufferStruct;
 
-ConstantBufferStruct g_baseColorValue = 
-{ 
+ConstantBufferStruct g_baseColorValue =
+{
     XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f)
 };
 
@@ -148,7 +148,11 @@ void Game::Render()
     context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &g_baseColorValue, 0, 0);
+    
+    ConstantBufferStruct constantBuffer;
+    double colorValue = (1 + sin(m_timer.GetTotalSeconds())) * 0.5f;
+    constantBuffer.Color = XMFLOAT4(1.0f, 0, colorValue, 1.0f);
+    context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &constantBuffer, 0, 0);
     context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
 
     context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
@@ -332,7 +336,7 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_RASTERIZER_DESC rasterizerStateDesc;
         ZeroMemory(&rasterizerStateDesc, sizeof(D3D11_RASTERIZER_DESC));
-        rasterizerStateDesc.FillMode = D3D11_FILL_WIREFRAME;//D3D11_FILL_SOLID;
+        rasterizerStateDesc.FillMode = D3D11_FILL_SOLID;
         rasterizerStateDesc.CullMode = D3D11_CULL_BACK;
         rasterizerStateDesc.FrontCounterClockwise = FALSE;
         rasterizerStateDesc.DepthBias = 0;
