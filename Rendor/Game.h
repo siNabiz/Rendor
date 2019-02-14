@@ -58,15 +58,15 @@ private:
     DirectX::GamePad::ButtonStateTracker m_buttons;
 
     // For vertex shader
-    Microsoft::WRL::ComPtr <ID3D11VertexShader> m_vertexShader;
-    Microsoft::WRL::ComPtr <ID3D11InputLayout> m_inputLayout;
-    Microsoft::WRL::ComPtr <ID3D11Buffer> m_constantBuffer;
-    Microsoft::WRL::ComPtr <ID3D11Buffer> m_vertexBuffer;
-    Microsoft::WRL::ComPtr <ID3D11Buffer> m_indexBuffer;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_inputLayout;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_constantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
 
     // For pixel shader
-    Microsoft::WRL::ComPtr <ID3D11PixelShader> m_pixelShader;
-    Microsoft::WRL::ComPtr <ID3D11InputLayout> m_pixelShaderInputLayout;
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_pixelShader;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_pixelShaderInputLayout;
 
     // For rasterizer state
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizerState;

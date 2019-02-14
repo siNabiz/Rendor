@@ -28,7 +28,7 @@ typedef struct _constantBufferStruct
 
 ConstantBufferStruct g_baseColorValue = 
 { 
-    XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f)
+    XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f)
 };
 
 typedef struct _vertexBufferStruct
@@ -38,9 +38,9 @@ typedef struct _vertexBufferStruct
 
 VertexBufferStruct g_triangleNDCVertices[3] =
 {
-    XMFLOAT3(0.25f, 0.25f, 0.0f),
-    XMFLOAT3(0.75f, 0.25f, 0.0f),
-    XMFLOAT3(0.5f, 0.75f, 0.0f)
+    XMFLOAT3(-1.0f, -1.0f, 0.0f),
+    XMFLOAT3(1.0f, -1.0f, 0.0f),
+    XMFLOAT3(0.0f, 1.0f, 0.0f)
 };
 
 WORD g_indices[3] =
@@ -135,14 +135,15 @@ void Game::Render()
     auto context = m_deviceResources->GetD3DDeviceContext();
 
     // TODO: Add your rendering code here.
-    context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
-
-    const UINT vertexStride = sizeof(g_triangleNDCVertices);
+    const UINT vertexStride = sizeof(VertexBufferStruct);
     const UINT vertexOffset = 0;
+
     context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &vertexStride, &vertexOffset);
     context->IASetInputLayout(m_inputLayout.Get());
     context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &g_baseColorValue, 0, 0);
@@ -166,19 +167,19 @@ void Game::Clear()
     auto renderTarget = m_deviceResources->GetRenderTargetView();
     auto depthStencil = m_deviceResources->GetDepthStencilView();
 
-    context->ClearRenderTargetView(renderTarget, Colors::CornflowerBlue);
+    context->ClearRenderTargetView(renderTarget, Colors::Black);
     context->ClearDepthStencilView(depthStencil, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-    context->OMSetRenderTargets(1, &renderTarget, depthStencil);
-
+    
     // Set the depth/stencil state
     context->OMSetDepthStencilState(m_depthStencilState.Get(), 0);
+    context->OMSetRenderTargets(1, &renderTarget, depthStencil);
+
+    // Set the rasterizer state
+    context->RSSetState(m_rasterizerState.Get());
 
     // Set the viewport.
     auto viewport = m_deviceResources->GetScreenViewport();
     context->RSSetViewports(1, &viewport);
-
-    // Set the rasterizer state
-    context->RSSetState(m_rasterizerState.Get());
 
     m_deviceResources->PIXEndEvent();
 }
@@ -272,7 +273,7 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_BUFFER_DESC constantBufferDesc;
         ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        constantBufferDesc.ByteWidth = sizeof(g_baseColorValue);
+        constantBufferDesc.ByteWidth = sizeof(ConstantBufferStruct); // one element only
         constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
@@ -291,7 +292,7 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_BUFFER_DESC vertexBufferDesc;
         ZeroMemory(&vertexBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        vertexBufferDesc.ByteWidth = sizeof(g_triangleNDCVertices);
+        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_triangleNDCVertices);
         vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
@@ -310,7 +311,7 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_BUFFER_DESC indexBufferDesc;
         ZeroMemory(&indexBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        indexBufferDesc.ByteWidth = sizeof(g_indices);
+        indexBufferDesc.ByteWidth = sizeof(WORD) * ARRAYSIZE(g_indices);
         indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
@@ -331,7 +332,7 @@ void Game::CreateDeviceDependentResources()
         ZeroMemory(&rasterizerStateDesc, sizeof(D3D11_RASTERIZER_DESC));
         rasterizerStateDesc.FillMode = D3D11_FILL_SOLID;
         rasterizerStateDesc.CullMode = D3D11_CULL_BACK;
-        rasterizerStateDesc.FrontCounterClockwise = TRUE;
+        rasterizerStateDesc.FrontCounterClockwise = FALSE;
         rasterizerStateDesc.DepthBias = 0;
         rasterizerStateDesc.DepthBiasClamp = 0.0f;
         rasterizerStateDesc.SlopeScaledDepthBias = 0.0f;
