@@ -1,3 +1,8 @@
+cbuffer AppData : register(b0)
+{
+    matrix RotScaleMatrix;
+};
+
 struct VS_INPUT
 {
     float3 Position : POSITION;
@@ -16,8 +21,8 @@ struct VS_OUTPUT
 VS_OUTPUT main(VS_INPUT IN) // main is the default function name
 {
     VS_OUTPUT Output;
-
-    Output.Position = float4(IN.Position, 1.0f);
+    
+    Output.Position = mul(RotScaleMatrix, float4(IN.Position, 1.0f));
     Output.Color = float4(IN.Color, 1.0f);
     Output.TexCoord = IN.TexCoord;
 

@@ -21,15 +21,15 @@ using namespace DirectX::SimpleMath;
 
 using Microsoft::WRL::ComPtr;
 
-//typedef struct _constantBufferStruct 
-//{
-//    XMFLOAT3 Color;
-//} ConstantBufferStruct;
-//
-//ConstantBufferStruct g_baseColorValue =
-//{
-//    XMFLOAT3(1.0f, 0.0f, 1.0f)
-//};
+typedef struct _vertexCBufferStruct
+{
+    XMMATRIX RotScaleMatrix;
+} VertexCBufferStruct;
+
+VertexCBufferStruct g_vertexCBuffer =
+{
+    DirectX::XMMatrixIdentity()
+};
 
 typedef struct _vertexBufferStruct
 {
@@ -148,18 +148,22 @@ void Game::Render()
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
+
+    float timeSinVal = 0.5f + 0.5f * XMScalarSin(m_timer.GetTotalSeconds());
+
+    VertexCBufferStruct vertexCBuffer;
+    Matrix mat = Matrix::CreateScale(0.5f);
+    mat *= Matrix::CreateRotationZ(timeSinVal * XM_2PI);
+    mat *= Matrix::CreateTranslation(timeSinVal*0.5f, -timeSinVal*0.5f, 0.0f);
+    vertexCBuffer.RotScaleMatrix = mat;
+    context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
 
     ID3D11ShaderResourceView* textures[2] = { m_texture_0.Get(), m_texture_1.Get() };
     context->PSSetShaderResources(0, 2, textures);
-
-    //ConstantBufferStruct constantBuffer;
-    //double colorValue = (1 + sin(m_timer.GetTotalSeconds())) * 0.5f;
-    //constantBuffer.Color = XMFLOAT3(1.0f, 0, colorValue);
-    //context->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &constantBuffer, 0, 0);
-    context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
 
     context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
 
@@ -274,20 +278,20 @@ void Game::CreateDeviceDependentResources()
 
     DX::ThrowIfFailed(device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout));
 
-    // Setup constant buffer
-    //{
-    //    D3D11_BUFFER_DESC constantBufferDesc;
-    //    ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
-    //    constantBufferDesc.ByteWidth = sizeof(ConstantBufferStruct); // one element only
-    //    constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-    //    constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    // Setup rot/scale constant buffer
+    {
+        D3D11_BUFFER_DESC constantBufferDesc;
+        ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        constantBufferDesc.ByteWidth = sizeof(VertexCBufferStruct); // one element only
+        constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
-    //    D3D11_SUBRESOURCE_DATA resourceData;
-    //    ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
-    //    resourceData.pSysMem = &g_baseColorValue;
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = &g_vertexCBuffer;
 
-    //    DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_constantBuffer));
-    //}
+        DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_vertexCBuffer));
+    }
 
     // Setup vertex buffer
     {

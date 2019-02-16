@@ -1,8 +1,3 @@
-//cbuffer ColorBuffer : register(b0)
-//{
-//    float4 Color;
-//};
-
 Texture2D Texture0 : register(t0);
 Texture2D Texture1 : register(t1);
 sampler Sampler : register(s0);
