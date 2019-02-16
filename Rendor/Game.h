@@ -73,4 +73,11 @@ private:
 
     // For depth/stencil state
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_depthStencilState;
+
+    // For sampler state
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_samplerState;
+
+    // For textures imported
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture_0;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture_1;
 };

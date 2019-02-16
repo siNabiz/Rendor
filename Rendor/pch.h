@@ -53,9 +53,10 @@
 #include <dxgidebug.h>
 #endif
 
-#include "SimpleMath.h"
 #include "GamePad.h"
+#include "SimpleMath.h"
 #include "VertexTypes.h"
+#include "WICTextureLoader.h"
 
 namespace DX
 {

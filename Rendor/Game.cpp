@@ -35,14 +35,15 @@ typedef struct _vertexBufferStruct
 {
     XMFLOAT3 Position;
     XMFLOAT3 Color;
+    XMFLOAT2 TexCoord;
 } VertexBufferStruct;
 
 VertexBufferStruct g_triangleNDCVertices[4] =
 {
-    XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f),
-    XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f),
-    XMFLOAT3(0.5f, 0.5f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f),
-    XMFLOAT3(-0.5f, 0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 1.0f)
+    XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),
+    XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f),
+    XMFLOAT3(0.5f, 0.5f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f),
+    XMFLOAT3(-0.5f, 0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f)
 };
 
 WORD g_indices[6] =
@@ -149,7 +150,11 @@ void Game::Render()
     context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    
+    context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
+
+    ID3D11ShaderResourceView* textures[2] = { m_texture_0.Get(), m_texture_1.Get() };
+    context->PSSetShaderResources(0, 2, textures);
+
     //ConstantBufferStruct constantBuffer;
     //double colorValue = (1 + sin(m_timer.GetTotalSeconds())) * 0.5f;
     //constantBuffer.Color = XMFLOAT3(1.0f, 0, colorValue);
@@ -255,27 +260,19 @@ void Game::CreateDeviceDependentResources()
     auto device = m_deviceResources->GetD3DDevice();
 
     // TODO: Initialize device dependent objects here (independent of window size).
-    HRESULT hr = 0;
 
     // Create vertex shader
-    hr = device->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &m_vertexShader);
-    if (FAILED(hr))
-    {
-        std::cerr << "Vertex Shader!" << std::endl;
-    }
+    DX::ThrowIfFailed(device->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &m_vertexShader));
 
     // Create vertex shader input layout
     D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(VertexBufferStruct,Position), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(VertexBufferStruct,Color), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
-    hr = device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout);
-    if (FAILED(hr))
-    {
-        std::cerr << "Layout!" << std::endl;
-    }
+    DX::ThrowIfFailed(device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout));
 
     // Setup constant buffer
     //{
@@ -289,11 +286,7 @@ void Game::CreateDeviceDependentResources()
     //    ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
     //    resourceData.pSysMem = &g_baseColorValue;
 
-    //    hr = device->CreateBuffer(&constantBufferDesc, &resourceData, &m_constantBuffer);
-    //    if (FAILED(hr))
-    //    {
-    //        std::cerr << "Constant Buffer!" << std::endl;
-    //    }
+    //    DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_constantBuffer));
     //}
 
     // Setup vertex buffer
@@ -308,11 +301,7 @@ void Game::CreateDeviceDependentResources()
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
         resourceData.pSysMem = g_triangleNDCVertices;
 
-        hr = device->CreateBuffer(&vertexBufferDesc, &resourceData, &m_vertexBuffer);
-        if (FAILED(hr))
-        {
-            std::cerr << "Vertex Buffer!" << std::endl;
-        }
+        DX::ThrowIfFailed(device->CreateBuffer(&vertexBufferDesc, &resourceData, &m_vertexBuffer));
     }
 
     // Setup index buffer
@@ -327,11 +316,7 @@ void Game::CreateDeviceDependentResources()
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
         resourceData.pSysMem = g_indices;
 
-        hr = device->CreateBuffer(&indexBufferDesc, &resourceData, &m_indexBuffer);
-        if (FAILED(hr))
-        {
-            std::cerr << "Index Buffer!" << std::endl;
-        }
+        DX::ThrowIfFailed(device->CreateBuffer(&indexBufferDesc, &resourceData, &m_indexBuffer));
     }
 
     // Setup rasterizer state
@@ -349,11 +334,7 @@ void Game::CreateDeviceDependentResources()
         rasterizerStateDesc.MultisampleEnable = FALSE;
         rasterizerStateDesc.AntialiasedLineEnable = FALSE;
 
-        hr = device->CreateRasterizerState(&rasterizerStateDesc, &m_rasterizerState);
-        if (FAILED(hr))
-        {
-            std::cerr << "Rasterizer State!" << std::endl;
-        }
+        DX::ThrowIfFailed(device->CreateRasterizerState(&rasterizerStateDesc, &m_rasterizerState));
     }
 
     // Setup depth/stencil state
@@ -365,19 +346,36 @@ void Game::CreateDeviceDependentResources()
         depthStencilStateDesc.DepthFunc = D3D11_COMPARISON_LESS;
         depthStencilStateDesc.StencilEnable = FALSE;
 
-        hr = device->CreateDepthStencilState(&depthStencilStateDesc, &m_depthStencilState);
-        if (FAILED(hr))
-        {
-            std::cerr << "Depth/Stencil State!" << std::endl;
-        }
+        DX::ThrowIfFailed(device->CreateDepthStencilState(&depthStencilStateDesc, &m_depthStencilState));
     }
 
     // Setup pixel shader
-    hr = device->CreatePixelShader(g_PixelShader, sizeof(g_PixelShader), nullptr, &m_pixelShader);
-    if (FAILED(hr))
+    DX::ThrowIfFailed(device->CreatePixelShader(g_PixelShader, sizeof(g_PixelShader), nullptr, &m_pixelShader));
+
+    // Setup sampler state
     {
-        std::cerr << "Pixel Shader!" << std::endl;
+        D3D11_SAMPLER_DESC samplerStateDesc;
+        ZeroMemory(&samplerStateDesc, sizeof(D3D11_SAMPLER_DESC));
+        samplerStateDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        samplerStateDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerStateDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerStateDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        samplerStateDesc.MipLODBias = 0.0f;
+        samplerStateDesc.MaxAnisotropy = 1;
+        samplerStateDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+        samplerStateDesc.BorderColor[0] = 1.0f;
+        samplerStateDesc.BorderColor[1] = 1.0f;
+        samplerStateDesc.BorderColor[2] = 1.0f;
+        samplerStateDesc.BorderColor[3] = 1.0f;
+        samplerStateDesc.MinLOD = -FLT_MAX;
+        samplerStateDesc.MaxLOD = FLT_MAX;
+
+        DX::ThrowIfFailed(device->CreateSamplerState(&samplerStateDesc, &m_samplerState));
     }
+
+    // Import textures
+    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"wall.jpg", nullptr, m_texture_0.ReleaseAndGetAddressOf()));
+    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"awesomeface.png", nullptr, m_texture_1.ReleaseAndGetAddressOf()));
 }
 
 // Allocate all memory resources that change on a window SizeChanged event.
@@ -389,6 +387,8 @@ void Game::CreateWindowSizeDependentResources()
 void Game::OnDeviceLost()
 {
     // TODO: Add Direct3D resource cleanup here.
+    m_texture_0.Reset();
+    m_texture_1.Reset();
 }
 
 void Game::OnDeviceRestored()

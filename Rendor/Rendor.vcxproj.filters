@@ -14,6 +14,9 @@
     <Filter Include="Data\Shaders">
       <UniqueIdentifier>{c1fbeb86-699d-4d36-b46f-f2211c334c55}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Data\Textures">
+      <UniqueIdentifier>{6da9e521-d762-4bf7-aeed-b70a0f5e023d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -39,6 +42,9 @@
   <ItemGroup>
     <Image Include="directx.ico">
       <Filter>Assets</Filter>
+    </Image>
+    <Image Include="wall.jpg">
+      <Filter>Data\Textures</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
