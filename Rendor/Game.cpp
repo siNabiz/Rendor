@@ -23,7 +23,7 @@ using Microsoft::WRL::ComPtr;
 
 typedef struct _vertexCBufferStruct
 {
-    XMMATRIX RotScaleMatrix;
+    XMMATRIX MVPMatrix;
 } VertexCBufferStruct;
 
 VertexCBufferStruct g_vertexCBuffer =
@@ -150,14 +150,23 @@ void Game::Render()
     context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
 
-    float timeSinVal = 0.5f + 0.5f * XMScalarSin(m_timer.GetTotalSeconds());
+    {
+        Matrix viewMatrix = Matrix::CreateLookAt(Vector3(0.0f, -3.0f, 3.0f), Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
 
-    VertexCBufferStruct vertexCBuffer;
-    Matrix mat = Matrix::CreateScale(0.5f);
-    mat *= Matrix::CreateRotationZ(timeSinVal * XM_2PI);
-    mat *= Matrix::CreateTranslation(timeSinVal*0.5f, -timeSinVal*0.5f, 0.0f);
-    vertexCBuffer.RotScaleMatrix = mat;
-    context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
+        auto viewport = m_deviceResources->GetScreenViewport();
+        Matrix projectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(45.0f), viewport.Width / viewport.Height, 0.1f, 100.0f);
+
+        float timeSinVal = XMScalarSin(float(m_timer.GetTotalSeconds()));
+        float timeCosVal = XMScalarCos(float(m_timer.GetTotalSeconds()));
+
+        Matrix modelMatrix = Matrix::CreateScale(0.5f);
+        modelMatrix *= Matrix::CreateRotationZ(timeSinVal * XM_2PI);
+        modelMatrix *= Matrix::CreateTranslation(timeSinVal * -0.5f, timeCosVal * 0.5f, 0.0f);
+
+        VertexCBufferStruct vertexCBuffer;
+        vertexCBuffer.MVPMatrix = modelMatrix * viewMatrix * projectionMatrix;
+        context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
+    }
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
@@ -278,7 +287,7 @@ void Game::CreateDeviceDependentResources()
 
     DX::ThrowIfFailed(device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout));
 
-    // Setup rot/scale constant buffer
+    // Setup MVP constant buffer
     {
         D3D11_BUFFER_DESC constantBufferDesc;
         ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
