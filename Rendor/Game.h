@@ -60,6 +60,7 @@ private:
     // For vertex shader
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader;
     Microsoft::WRL::ComPtr<ID3D11InputLayout> m_inputLayout;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_instanceVertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
 

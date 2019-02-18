@@ -38,18 +38,39 @@ typedef struct _vertexBufferStruct
     XMFLOAT2 TexCoord;
 } VertexBufferStruct;
 
-VertexBufferStruct g_triangleNDCVertices[4] =
+__declspec(align(16)) typedef struct _instanceVertexBufferStruct
 {
-    XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),
-    XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f),
-    XMFLOAT3(0.5f, 0.5f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f),
-    XMFLOAT3(-0.5f, 0.5f, 0.0f), XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f)
+    XMMATRIX WorldMatrix;
+} InstanceVertexBufferStruct;
+
+int g_numInstances = 10;
+
+VertexBufferStruct g_triangleNDCVertices[8] =
+{
+    XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),
+    XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f),
+    XMFLOAT3(0.5f, 0.5f, 0.5f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f),
+    XMFLOAT3(-0.5f, 0.5f, 0.5f), XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f),
+    XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),
+    XMFLOAT3(0.5f, -0.5f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f),
+    XMFLOAT3(0.5f, 0.5f, -0.5f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f),
+    XMFLOAT3(-0.5f, 0.5f, -0.5f), XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f)
 };
 
-WORD g_indices[6] =
+WORD g_indices[36] =
 {
-    0, 2, 1,
-    0, 3, 2
+    0, 2, 1, // side 1
+    0, 3, 2,
+    4, 3, 0, // side 2
+    4, 7, 3,
+    5, 7, 4, // side 3
+    5, 6, 7,
+    1, 6, 5, // side 4
+    1, 2, 6,
+    3, 6, 2, // side 5 (top)
+    3, 7, 6,
+    4, 1, 5, // side 6 (bottom)
+    4, 0, 1
 };
 
 Game::Game() noexcept(false)
@@ -139,10 +160,11 @@ void Game::Render()
     auto context = m_deviceResources->GetD3DDeviceContext();
 
     // TODO: Add your rendering code here.
-    const UINT vertexStride = sizeof(VertexBufferStruct);
-    const UINT vertexOffset = 0;
+    ID3D11Buffer*const buffers[] = { m_vertexBuffer.Get(), m_instanceVertexBuffer.Get() };
+    const UINT vertexStride[] = { sizeof(VertexBufferStruct), sizeof(InstanceVertexBufferStruct) };
+    const UINT vertexOffset[] = { 0, 0 };
 
-    context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &vertexStride, &vertexOffset);
+    context->IASetVertexBuffers(0, 2, buffers, vertexStride, vertexOffset);
     context->IASetInputLayout(m_inputLayout.Get());
     context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -151,21 +173,33 @@ void Game::Render()
     context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
 
     {
-        Matrix viewMatrix = Matrix::CreateLookAt(Vector3(0.0f, -3.0f, 3.0f), Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
+        Matrix viewMatrix = Matrix::CreateLookAt(Vector3(0.0f, 10.0f, 10.0f), Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
 
         auto viewport = m_deviceResources->GetScreenViewport();
         Matrix projectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(45.0f), viewport.Width / viewport.Height, 0.1f, 100.0f);
 
+        VertexCBufferStruct vertexCBuffer;
+        vertexCBuffer.MVPMatrix = viewMatrix * projectionMatrix;
+        context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
+
+        InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct) * g_numInstances, 16);
+
         float timeSinVal = XMScalarSin(float(m_timer.GetTotalSeconds()));
         float timeCosVal = XMScalarCos(float(m_timer.GetTotalSeconds()));
 
-        Matrix modelMatrix = Matrix::CreateScale(0.5f);
-        modelMatrix *= Matrix::CreateRotationZ(timeSinVal * XM_2PI);
-        modelMatrix *= Matrix::CreateTranslation(timeSinVal * -0.5f, timeCosVal * 0.5f, 0.0f);
+        for (int i = 0; i < g_numInstances; i++)
+        {
+            Matrix modelMatrix = Matrix::CreateScale(0.5f);
+            modelMatrix *= Matrix::CreateRotationZ(timeSinVal * XM_2PI);
+            float val = float(i) * 0.75f;
+            modelMatrix *= Matrix::CreateTranslation(timeSinVal * -val, timeCosVal * val, 0.0f);
+            modelMatrix *= Matrix::CreateRotationY(XMConvertToRadians(float(i) * 0.9f));
 
-        VertexCBufferStruct vertexCBuffer;
-        vertexCBuffer.MVPMatrix = modelMatrix * viewMatrix * projectionMatrix;
-        context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
+            instanceData[i].WorldMatrix = modelMatrix;
+        }
+
+        context->UpdateSubresource(m_instanceVertexBuffer.Get(), 0, nullptr, instanceData, 0, 0);
+        _aligned_free(instanceData);
     }
 
     context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
@@ -174,7 +208,7 @@ void Game::Render()
     ID3D11ShaderResourceView* textures[2] = { m_texture_0.Get(), m_texture_1.Get() };
     context->PSSetShaderResources(0, 2, textures);
 
-    context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
+    context->DrawIndexedInstanced(ARRAYSIZE(g_indices), g_numInstances, 0, 0, 0);
 
     m_deviceResources->PIXEndEvent();
 
@@ -280,14 +314,20 @@ void Game::CreateDeviceDependentResources()
     // Create vertex shader input layout
     D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
     {
+        // Per-vertex data
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        // Per-instance data
+        { "MODELMATRIX", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "MODELMATRIX", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "MODELMATRIX", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "MODELMATRIX", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
     };
 
     DX::ThrowIfFailed(device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout));
 
-    // Setup MVP constant buffer
+    // Setup VP constant buffer
     {
         D3D11_BUFFER_DESC constantBufferDesc;
         ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
@@ -300,6 +340,27 @@ void Game::CreateDeviceDependentResources()
         resourceData.pSysMem = &g_vertexCBuffer;
 
         DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_vertexCBuffer));
+    }
+
+    // Setup per-instance buffer
+    {
+        D3D11_BUFFER_DESC instanceBufferDesc;
+        ZeroMemory(&instanceBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        instanceBufferDesc.ByteWidth = sizeof(InstanceVertexBufferStruct) * g_numInstances; // one element only
+        instanceBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        instanceBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        // Create and setup the per-instance buffer data
+        InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct) * g_numInstances, 16);
+        ZeroMemory(instanceData, sizeof(instanceData));
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = instanceData;
+
+        DX::ThrowIfFailed(device->CreateBuffer(&instanceBufferDesc, &resourceData, &m_instanceVertexBuffer));
+
+        _aligned_free(instanceData);
     }
 
     // Setup vertex buffer
