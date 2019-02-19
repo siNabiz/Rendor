@@ -83,4 +83,12 @@ private:
     // For textures imported
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture_0;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture_1;
+
+    // For controlling the camera
+    DirectX::SimpleMath::Vector3 m_cameraPos;
+    DirectX::SimpleMath::Vector3 m_cameraFront;
+    float m_cameraPitch;
+    float m_cameraYaw;
+    DirectX::SimpleMath::Vector3 m_cameraUp;
+    float m_cameraFOV;
 };

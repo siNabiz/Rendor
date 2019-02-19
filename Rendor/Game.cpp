@@ -99,6 +99,15 @@ void Game::Initialize(HWND window, int width, int height)
 
     // for gamepad controller
     m_gamePad = std::make_unique<GamePad>();
+
+    // for camera
+    m_cameraPos = Vector3(0.0f, 0.0f, 10.0f);
+    m_cameraPitch = 0.0f;
+    m_cameraYaw = -90.0f;
+    m_cameraFront = Vector3(XMScalarCos(m_cameraPitch)*XMScalarCos(m_cameraYaw), XMScalarSin(m_cameraPitch), XMScalarCos(m_cameraPitch)*XMScalarSin(m_cameraYaw));
+    m_cameraFront.Normalize();
+    m_cameraUp = Vector3(0.0f, 1.0f, 0.0f);
+    m_cameraFOV = 100.0f;
 }
 
 #pragma region Frame Update
@@ -132,13 +141,58 @@ void Game::Update(DX::StepTimer const& timer)
         }
 
         m_buttons.Update(state);
-        if (m_buttons.a == GamePad::ButtonStateTracker::PRESSED)
+
+        // update camera front
         {
-            // A was up last frame, it just went down this frame
+            float rightPosX = state.thumbSticks.rightX;
+            float rightPosY = state.thumbSticks.rightY;
+
+            float speedAdjuster = 0.01f;
+            m_cameraYaw += rightPosX * speedAdjuster;
+            m_cameraPitch += rightPosY * speedAdjuster;
+
+            if (m_cameraPitch > 89.0f)
+                m_cameraPitch = 89.0f;
+            else if (m_cameraPitch < -89.0f)
+                m_cameraPitch = -89.0f;
+
+            m_cameraFront = Vector3(XMScalarCos(m_cameraPitch)*XMScalarCos(m_cameraYaw), XMScalarSin(m_cameraPitch), XMScalarCos(m_cameraPitch)*XMScalarSin(m_cameraYaw));
+            m_cameraFront.Normalize();
         }
-        if (m_buttons.b == GamePad::ButtonStateTracker::RELEASED)
+
+        // update camera position
         {
-            // B was down last frame, it just went up this frame
+            float cameraSpeed = 0.05f;
+            if (state.IsRightTriggerPressed())
+            {
+                cameraSpeed *= state.triggers.right * 2.0f;
+            }
+            if (state.IsDPadUpPressed())
+            {
+                m_cameraPos += cameraSpeed * m_cameraFront;
+            }
+            if (state.IsDPadDownPressed())
+            {
+                m_cameraPos -= cameraSpeed * m_cameraFront;
+            }
+            if (state.IsDPadRightPressed())
+            {
+                m_cameraPos += cameraSpeed * m_cameraFront.Cross(m_cameraUp);
+            }
+            if (state.IsDPadLeftPressed())
+            {
+                m_cameraPos -= cameraSpeed * m_cameraFront.Cross(m_cameraUp);
+            }
+        }
+
+        // update FOV
+        {
+            float leftPosY = state.thumbSticks.leftY;
+            m_cameraFOV -= leftPosY;
+            if (m_cameraFOV > 100.0f)
+                m_cameraFOV = 100.0f;
+            else if (m_cameraFOV < 1.0f)
+                m_cameraFOV = 1.0f;
         }
     }
 }
@@ -173,27 +227,26 @@ void Game::Render()
     context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
 
     {
-        Matrix viewMatrix = Matrix::CreateLookAt(Vector3(0.0f, 10.0f, 10.0f), Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
+        Matrix viewMatrix = Matrix::CreateLookAt(m_cameraPos, m_cameraPos + m_cameraFront, m_cameraUp);
 
         auto viewport = m_deviceResources->GetScreenViewport();
-        Matrix projectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(45.0f), viewport.Width / viewport.Height, 0.1f, 100.0f);
+        Matrix projectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(m_cameraFOV), viewport.Width / viewport.Height, 0.1f, 100.0f);
 
         VertexCBufferStruct vertexCBuffer;
         vertexCBuffer.MVPMatrix = viewMatrix * projectionMatrix;
         context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
 
-        InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct) * g_numInstances, 16);
-
         float timeSinVal = XMScalarSin(float(m_timer.GetTotalSeconds()));
         float timeCosVal = XMScalarCos(float(m_timer.GetTotalSeconds()));
 
+        InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct) * g_numInstances, 16);
         for (int i = 0; i < g_numInstances; i++)
         {
             Matrix modelMatrix = Matrix::CreateScale(0.5f);
-            modelMatrix *= Matrix::CreateRotationZ(timeSinVal * XM_2PI);
-            float val = float(i) * 0.75f;
-            modelMatrix *= Matrix::CreateTranslation(timeSinVal * -val, timeCosVal * val, 0.0f);
-            modelMatrix *= Matrix::CreateRotationY(XMConvertToRadians(float(i) * 0.9f));
+            modelMatrix *= Matrix::CreateRotationY(timeSinVal * XM_2PI);
+            float dist = float(i) * 0.75f;
+            modelMatrix *= Matrix::CreateTranslation(timeSinVal * -dist, timeCosVal * dist, 0.0f);
+            modelMatrix *= Matrix::CreateRotationZ(XMConvertToRadians(float(i) * 10.0f));
 
             instanceData[i].WorldMatrix = modelMatrix;
         }
