@@ -80,6 +80,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexCBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_simplePixelCBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_lightingPixelCBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_lightingPixelLightCBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_lightingPixelMaterialCBuffer;
 
     // For rasterizer state
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizerState;
