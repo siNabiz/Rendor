@@ -53,28 +53,32 @@ float4 main(PS_INPUT IN) : SV_TARGET
     float3 reflectionDirection = normalize(reflect(-lightDirection, normalDirection));
     float3 viewDirection = normalize(CameraPosition - IN.FragPosition);
 
+    // Use material lighting textures (maps)
+    float4 materialAmbient = Material.Ambient;
+    float4 materialDiffuse = Material.Diffuse;
+    float4 materialSpecular = Material.Specular;
+    if (Material.UseTexture)
+    {
+        float4 diffuseMap = Texture0.Sample(Sampler, IN.TexCoord);
+        float4 specularMap = Texture1.Sample(Sampler, IN.TexCoord);
+
+        materialAmbient = diffuseMap;
+        materialDiffuse = diffuseMap;
+        materialSpecular = specularMap;
+    }
+
     // Ambient light
-    float4 ambient = Material.Ambient * Light.Ambient;
+    float4 ambient = materialAmbient * Light.Ambient;
 
     // Diffuse light
     float diffuseValue = max(dot(lightDirection, normalDirection), 0);
-    float4 diffuse = diffuseValue * Material.Diffuse * Light.Diffuse;
+    float4 diffuse = diffuseValue * materialDiffuse * Light.Diffuse;
 
     // Specular light
     float specularValue = pow(max(dot(viewDirection, reflectionDirection), 0), Material.Shininess);
-    float4 specular = specularValue * Material.Specular * Light.Specular;
+    float4 specular = specularValue * materialSpecular * Light.Specular;
 
-    // Apply textures
-    float4 texColor = 1;
-    if (Material.UseTexture)
-    {
-        float4 texColor0 = Texture0.Sample(Sampler, IN.TexCoord);
-        float4 texColor1 = Texture1.Sample(Sampler, IN.TexCoord);
-
-        texColor = lerp(texColor0, texColor1, 0.2);
-    }
-
-    float4 finalColor = (ambient + diffuse + specular) * texColor;
+    float4 finalColor = ambient + diffuse + specular;
 
     return finalColor;
 }
