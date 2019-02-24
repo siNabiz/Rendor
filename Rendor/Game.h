@@ -57,19 +57,29 @@ private:
     std::unique_ptr<DirectX::GamePad> m_gamePad;
     DirectX::GamePad::ButtonStateTracker m_buttons;
 
-    // For vertex shader
-    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader;
-    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_inputLayout;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_instanceVertexBuffer;
+    // Shared for all vertex shaders
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
 
+    // For instanced vertex shader
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_instancedVertexShader;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_instancedInputLayout;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_instanceVertexBuffer;
+
+    // For simple vertex shader
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_simpleVertexShader;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_simpleInputLayout;
+
+    // For simple pixel shader
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_simplePixelShader;
+
+    // For lighting pixel shader
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_lightingPixelShader;
+
     // Constant buffers
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexCBuffer;
-
-    // For pixel shader
-    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_pixelShader;
-    Microsoft::WRL::ComPtr<ID3D11InputLayout> m_pixelShaderInputLayout;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_simplePixelCBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_lightingPixelCBuffer;
 
     // For rasterizer state
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_rasterizerState;

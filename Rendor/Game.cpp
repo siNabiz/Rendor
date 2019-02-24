@@ -7,11 +7,15 @@
 #include <iostream>
 
 #if _DEBUG
-#include "VertexShader_d.h"
-#include "PixelShader_d.h"
+#include "SimpleVertexShader_d.h"
+#include "InstancedVertexShader_d.h"
+#include "LightingPixelShader_d.h"
+#include "SimplePixelShader_d.h"
 #else
-#include "VertexShader.h"
-#include "PixelShader.h"
+#include "SimpleVertexShader.h"
+#include "InstancedVertexShader.h"
+#include "LightingPixelShader.h"
+#include "SimplePixelShader.h"
 #endif
 
 extern void ExitGame();
@@ -21,9 +25,37 @@ using namespace DirectX::SimpleMath;
 
 using Microsoft::WRL::ComPtr;
 
+typedef struct _lightingPixelCBufferStruct
+{
+    XMFLOAT4 LightColor;    // 16 bytes
+    XMFLOAT4 ObjectColor;   // 16 bytes
+    int UseConstantColor;   // 4 bytes
+    int UseTexture;         // 4 bytes
+    float Padding[2];       // 12 bytes
+} LightingPixelCBufferStruct;
+
+LightingPixelCBufferStruct g_lightingPixelCBuffer =
+{
+    XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+    XMFLOAT4(1.0f, 0.5f, 0.31f, 1.0f),
+    1,
+    0,
+    {0.0f, 0.0f}
+};
+
+typedef struct _simplePixelCBufferStruct
+{
+    XMFLOAT4 Color;     // 16 bytes
+} SimplePixelCBufferStruct;
+
+SimplePixelCBufferStruct g_simplePixelCBuffer =
+{
+    XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f)
+};
+
 typedef struct _vertexCBufferStruct
 {
-    XMMATRIX MVPMatrix;
+    XMMATRIX MVPMatrix; // 64 bytes (4*16 bytes)
 } VertexCBufferStruct;
 
 VertexCBufferStruct g_vertexCBuffer =
@@ -45,7 +77,7 @@ __declspec(align(16)) typedef struct _instanceVertexBufferStruct
 
 int g_numInstances = 10;
 
-VertexBufferStruct g_triangleNDCVertices[8] =
+VertexBufferStruct g_vertices[8] =
 {
     XMFLOAT3(-0.5f, -0.5f, 0.5f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),
     XMFLOAT3(0.5f, -0.5f, 0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f),
@@ -101,10 +133,12 @@ void Game::Initialize(HWND window, int width, int height)
     m_gamePad = std::make_unique<GamePad>();
 
     // for camera
-    m_cameraPos = Vector3(0.0f, 0.0f, 10.0f);
+    m_cameraPos = Vector3(0.0f, 0.0f, 7.0f);
     m_cameraPitch = 0.0f;
     m_cameraYaw = -90.0f;
-    m_cameraFront = Vector3(XMScalarCos(m_cameraPitch)*XMScalarCos(m_cameraYaw), XMScalarSin(m_cameraPitch), XMScalarCos(m_cameraPitch)*XMScalarSin(m_cameraYaw));
+    m_cameraFront = Vector3(XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarCos(XMConvertToRadians(m_cameraYaw)),
+                            XMScalarSin(XMConvertToRadians(m_cameraPitch)), 
+                            XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarSin(XMConvertToRadians(m_cameraYaw)));
     m_cameraFront.Normalize();
     m_cameraUp = Vector3(0.0f, 1.0f, 0.0f);
     m_cameraFOV = 100.0f;
@@ -147,7 +181,7 @@ void Game::Update(DX::StepTimer const& timer)
             float rightPosX = state.thumbSticks.rightX;
             float rightPosY = state.thumbSticks.rightY;
 
-            float speedAdjuster = 0.01f;
+            float speedAdjuster = 1.0f;
             m_cameraYaw += rightPosX * speedAdjuster;
             m_cameraPitch += rightPosY * speedAdjuster;
 
@@ -156,7 +190,9 @@ void Game::Update(DX::StepTimer const& timer)
             else if (m_cameraPitch < -89.0f)
                 m_cameraPitch = -89.0f;
 
-            m_cameraFront = Vector3(XMScalarCos(m_cameraPitch)*XMScalarCos(m_cameraYaw), XMScalarSin(m_cameraPitch), XMScalarCos(m_cameraPitch)*XMScalarSin(m_cameraYaw));
+            m_cameraFront = Vector3(XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarCos(XMConvertToRadians(m_cameraYaw)),
+                                    XMScalarSin(XMConvertToRadians(m_cameraPitch)),
+                                    XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarSin(XMConvertToRadians(m_cameraYaw)));
             m_cameraFront.Normalize();
         }
 
@@ -214,54 +250,61 @@ void Game::Render()
     auto context = m_deviceResources->GetD3DDeviceContext();
 
     // TODO: Add your rendering code here.
+    context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    // Update camera information //
+    Matrix viewMatrix = Matrix::CreateLookAt(m_cameraPos, m_cameraPos + m_cameraFront, m_cameraUp);
+
+    auto viewport = m_deviceResources->GetScreenViewport();
+    Matrix projectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(m_cameraFOV), viewport.Width / viewport.Height, 0.1f, 100.0f);
+    ///////////////////////////////
+
+    context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
+
     ID3D11Buffer*const buffers[] = { m_vertexBuffer.Get(), m_instanceVertexBuffer.Get() };
     const UINT vertexStride[] = { sizeof(VertexBufferStruct), sizeof(InstanceVertexBufferStruct) };
     const UINT vertexOffset[] = { 0, 0 };
 
-    context->IASetVertexBuffers(0, 2, buffers, vertexStride, vertexOffset);
-    context->IASetInputLayout(m_inputLayout.Get());
-    context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
-    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
-    context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
-
+    // draw other objects
     {
-        Matrix viewMatrix = Matrix::CreateLookAt(m_cameraPos, m_cameraPos + m_cameraFront, m_cameraUp);
-
-        auto viewport = m_deviceResources->GetScreenViewport();
-        Matrix projectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(m_cameraFOV), viewport.Width / viewport.Height, 0.1f, 100.0f);
+        context->IASetVertexBuffers(0, 2, buffers, vertexStride, vertexOffset);
+        context->IASetInputLayout(m_instancedInputLayout.Get());
+        context->VSSetShader(m_instancedVertexShader.Get(), nullptr, 0);
 
         VertexCBufferStruct vertexCBuffer;
         vertexCBuffer.MVPMatrix = viewMatrix * projectionMatrix;
         context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
 
-        float timeSinVal = XMScalarSin(float(m_timer.GetTotalSeconds()));
-        float timeCosVal = XMScalarCos(float(m_timer.GetTotalSeconds()));
+        context->PSSetShader(m_lightingPixelShader.Get(), nullptr, 0);
+        context->PSSetConstantBuffers(0, 1, m_lightingPixelCBuffer.GetAddressOf());
 
-        InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct) * g_numInstances, 16);
-        for (int i = 0; i < g_numInstances; i++)
-        {
-            Matrix modelMatrix = Matrix::CreateScale(0.5f);
-            modelMatrix *= Matrix::CreateRotationY(timeSinVal * XM_2PI);
-            float dist = float(i) * 0.75f;
-            modelMatrix *= Matrix::CreateTranslation(timeSinVal * -dist, timeCosVal * dist, 0.0f);
-            modelMatrix *= Matrix::CreateRotationZ(XMConvertToRadians(float(i) * 10.0f));
+        context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
 
-            instanceData[i].WorldMatrix = modelMatrix;
-        }
+        ID3D11ShaderResourceView* textures[2] = { m_texture_0.Get(), m_texture_1.Get() };
+        context->PSSetShaderResources(0, 2, textures);
 
-        context->UpdateSubresource(m_instanceVertexBuffer.Get(), 0, nullptr, instanceData, 0, 0);
-        _aligned_free(instanceData);
+        context->DrawIndexedInstanced(ARRAYSIZE(g_indices), g_numInstances, 0, 0, 0);
     }
 
-    context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
+    // draw the lamp
+    {
+        context->IASetVertexBuffers(0, 1, buffers, vertexStride, vertexOffset);
+        context->IASetInputLayout(m_simpleInputLayout.Get());
+        context->VSSetShader(m_simpleVertexShader.Get(), nullptr, 0);
 
-    ID3D11ShaderResourceView* textures[2] = { m_texture_0.Get(), m_texture_1.Get() };
-    context->PSSetShaderResources(0, 2, textures);
+        Matrix modelMatrix = Matrix::CreateScale(0.2f);
+        modelMatrix *= Matrix::CreateTranslation(0.0f, 0.0f, 0.0f);
 
-    context->DrawIndexedInstanced(ARRAYSIZE(g_indices), g_numInstances, 0, 0, 0);
+        VertexCBufferStruct vertexCBuffer;
+        vertexCBuffer.MVPMatrix = modelMatrix * viewMatrix * projectionMatrix;
+        context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
+
+        context->PSSetShader(m_simplePixelShader.Get(), nullptr, 0);
+        context->PSSetConstantBuffers(0, 1, m_simplePixelCBuffer.GetAddressOf());
+
+        context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
+    }
 
     m_deviceResources->PIXEndEvent();
 
@@ -361,11 +404,11 @@ void Game::CreateDeviceDependentResources()
 
     // TODO: Initialize device dependent objects here (independent of window size).
 
-    // Create vertex shader
-    DX::ThrowIfFailed(device->CreateVertexShader(g_VertexShader, sizeof(g_VertexShader), nullptr, &m_vertexShader));
+    // Create instanced vertex shader
+    DX::ThrowIfFailed(device->CreateVertexShader(g_InstancedVertexShader, sizeof(g_InstancedVertexShader), nullptr, &m_instancedVertexShader));
 
     // Create vertex shader input layout
-    D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
+    D3D11_INPUT_ELEMENT_DESC instancedVertexLayoutDesc[] =
     {
         // Per-vertex data
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -378,7 +421,21 @@ void Game::CreateDeviceDependentResources()
         { "MODELMATRIX", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
     };
 
-    DX::ThrowIfFailed(device->CreateInputLayout(vertexLayoutDesc, ARRAYSIZE(vertexLayoutDesc), g_VertexShader, sizeof(g_VertexShader), &m_inputLayout));
+    DX::ThrowIfFailed(device->CreateInputLayout(instancedVertexLayoutDesc, ARRAYSIZE(instancedVertexLayoutDesc), g_InstancedVertexShader, sizeof(g_InstancedVertexShader), &m_instancedInputLayout));
+
+    // Create vertex shader
+    DX::ThrowIfFailed(device->CreateVertexShader(g_SimpleVertexShader, sizeof(g_SimpleVertexShader), nullptr, &m_simpleVertexShader));
+
+    // Create vertex shader input layout
+    D3D11_INPUT_ELEMENT_DESC simpleVertexLayoutDesc[] =
+    {
+        // Per-vertex data
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+    };
+
+    DX::ThrowIfFailed(device->CreateInputLayout(simpleVertexLayoutDesc, ARRAYSIZE(simpleVertexLayoutDesc), g_SimpleVertexShader, sizeof(g_SimpleVertexShader), &m_simpleInputLayout));
 
     // Setup VP constant buffer
     {
@@ -407,6 +464,22 @@ void Game::CreateDeviceDependentResources()
         InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct) * g_numInstances, 16);
         ZeroMemory(instanceData, sizeof(instanceData));
 
+        for (int i = 0; i < g_numInstances; i++)
+        {
+            float randVal = (float)rand() / RAND_MAX;
+
+            Matrix modelMatrix = Matrix::CreateScale(0.5f);
+            modelMatrix *= Matrix::CreateRotationX(randVal * XM_2PI);
+            modelMatrix *= Matrix::CreateRotationY(randVal * XM_2PI);
+            modelMatrix *= Matrix::CreateRotationZ(randVal * XM_2PI);
+            float distX = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * 5.0f;
+            float distY = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * 5.0f;
+            float distZ = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * 5.0f;
+            modelMatrix *= Matrix::CreateTranslation(distX, distY, distZ);
+
+            instanceData[i].WorldMatrix = modelMatrix;
+        }
+
         D3D11_SUBRESOURCE_DATA resourceData;
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
         resourceData.pSysMem = instanceData;
@@ -420,13 +493,13 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_BUFFER_DESC vertexBufferDesc;
         ZeroMemory(&vertexBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_triangleNDCVertices);
+        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_vertices);
         vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
         D3D11_SUBRESOURCE_DATA resourceData;
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
-        resourceData.pSysMem = g_triangleNDCVertices;
+        resourceData.pSysMem = g_vertices;
 
         DX::ThrowIfFailed(device->CreateBuffer(&vertexBufferDesc, &resourceData, &m_vertexBuffer));
     }
@@ -476,8 +549,39 @@ void Game::CreateDeviceDependentResources()
         DX::ThrowIfFailed(device->CreateDepthStencilState(&depthStencilStateDesc, &m_depthStencilState));
     }
 
-    // Setup pixel shader
-    DX::ThrowIfFailed(device->CreatePixelShader(g_PixelShader, sizeof(g_PixelShader), nullptr, &m_pixelShader));
+    // Setup pixel shaders
+    DX::ThrowIfFailed(device->CreatePixelShader(g_LightingPixelShader, sizeof(g_LightingPixelShader), nullptr, &m_lightingPixelShader));
+    DX::ThrowIfFailed(device->CreatePixelShader(g_SimplePixelShader, sizeof(g_SimplePixelShader), nullptr, &m_simplePixelShader));
+
+    // Setup simple pixel shader constant buffer
+    {
+        D3D11_BUFFER_DESC constantBufferDesc;
+        ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        constantBufferDesc.ByteWidth = sizeof(SimplePixelCBufferStruct); // one element only
+        constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = &g_simplePixelCBuffer;
+
+        DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_simplePixelCBuffer));
+    }
+
+    // Setup lighting pixel shader constant buffer
+    {
+        D3D11_BUFFER_DESC constantBufferDesc;
+        ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        constantBufferDesc.ByteWidth = sizeof(LightingPixelCBufferStruct); // one element only
+        constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = &g_lightingPixelCBuffer;
+
+        DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_lightingPixelCBuffer));
+    }
 
     // Setup sampler state
     {
