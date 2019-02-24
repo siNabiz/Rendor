@@ -7,6 +7,7 @@ struct VS_INPUT
 {
     // per-vertex data
     float3 Position : POSITION;
+    float3 Normal : NORMAL;
     float3 Color : COLOR;
     float2 TexCoord : TEXCOORD;
 };
