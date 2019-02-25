@@ -26,6 +26,9 @@ using namespace DirectX::SimpleMath;
 using Microsoft::WRL::ComPtr;
 
 #define USE_INDEXES 0
+#define NUMBER_OF_LIGHTS 5
+
+int g_numInstances = 15;
 
 typedef struct _lightingPixelCBufferStruct
 {
@@ -39,23 +42,29 @@ LightingPixelCBufferStruct g_lightingPixelCBuffer =
     1.0f
 };
 
+enum LightType
+{
+    Directional = 0,
+    Point = 1,
+    Spot = 2
+};
+
 typedef struct _lightingPixelLightCBufferStruct
 {
-    XMFLOAT4 Ambient;       // 16 bytes
-    XMFLOAT4 Diffuse;       // 16 bytes
-    XMFLOAT4 Specular;      // 16 bytes
-    XMFLOAT3 LightPosition;   // 12 bytes
-    float Padding;          // 4 bytes
+    XMFLOAT4 Ambient;           // 16 bytes
+    XMFLOAT4 Diffuse;           // 16 bytes
+    XMFLOAT4 Specular;          // 16 bytes
+    XMFLOAT3 Position;          // 12 bytes
+    float Padding0;             // 4 bytes
+    XMFLOAT3 Direction;         // 12 bytes
+    float SpotAngle;            // 4 bytes
+    float ConstantAttenuation;  // 4 bytes
+    float LinearAttenuation;    // 4 bytes
+    float QuadraticAttenuation; // 4 bytes
+    int Type;                   // 4 bytes
 } LightingPixelLightCBufferStruct;
 
-LightingPixelLightCBufferStruct g_lightingPixelLightCBuffer =
-{
-    XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f),
-    XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f),
-    XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
-    XMFLOAT3(0.0f, 0.0f, 0.0f),
-    1.0f
-};
+LightingPixelLightCBufferStruct g_lightingPixelLightCBuffer[NUMBER_OF_LIGHTS];
 
 typedef struct _lightingPixelMaterialCBufferStruct
 {
@@ -110,8 +119,6 @@ __declspec(align(16)) typedef struct _instanceVertexBufferStruct
     XMMATRIX WorldMatrix;
     XMMATRIX NormalMatrix;
 } InstanceVertexBufferStruct;
-
-int g_numInstances = 10;
 
 #if USE_INDEXES
 VertexBufferStruct g_vertices[8] =
@@ -216,7 +223,7 @@ void Game::Initialize(HWND window, int width, int height)
     m_gamePad = std::make_unique<GamePad>();
 
     // for camera
-    m_cameraPos = Vector3(0.0f, 0.0f, 7.0f);
+    m_cameraPos = Vector3(0.0f, 0.0f, 1.0f);
     m_cameraPitch = 0.0f;
     m_cameraYaw = -90.0f;
     m_cameraFront = Vector3(XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarCos(XMConvertToRadians(m_cameraYaw)),
@@ -387,13 +394,16 @@ void Game::Render()
     }
 
     // draw the lamp
+    for(int i = 0; i < NUMBER_OF_LIGHTS; i++)
     {
         context->IASetVertexBuffers(0, 1, buffers, vertexStride, vertexOffset);
         context->IASetInputLayout(m_simpleInputLayout.Get());
         context->VSSetShader(m_simpleVertexShader.Get(), nullptr, 0);
 
+        XMFLOAT3 postion = g_lightingPixelLightCBuffer[i].Position;
+
         Matrix modelMatrix = Matrix::CreateScale(0.2f);
-        modelMatrix *= Matrix::CreateTranslation(0.0f, 0.0f, 0.0f);
+        modelMatrix *= Matrix::CreateTranslation(postion.x, postion.y, postion.z);
 
         VertexCBufferStruct vertexCBuffer;
         vertexCBuffer.MVPMatrix = modelMatrix * viewMatrix * projectionMatrix;
@@ -575,7 +585,7 @@ void Game::CreateDeviceDependentResources()
         {
             float randVal = (float)rand() / RAND_MAX;
 
-            Matrix modelMatrix = Matrix::CreateScale(0.5f);
+            Matrix modelMatrix = Matrix::CreateScale(0.75f);
             modelMatrix *= Matrix::CreateRotationX(randVal * XM_2PI);
             modelMatrix *= Matrix::CreateRotationY(randVal * XM_2PI);
             modelMatrix *= Matrix::CreateRotationZ(randVal * XM_2PI);
@@ -705,12 +715,38 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_BUFFER_DESC constantBufferDesc;
         ZeroMemory(&constantBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        constantBufferDesc.ByteWidth = sizeof(LightingPixelLightCBufferStruct); // one element only
+        constantBufferDesc.ByteWidth = sizeof(LightingPixelLightCBufferStruct) * NUMBER_OF_LIGHTS; // one element only
         constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
         D3D11_SUBRESOURCE_DATA resourceData;
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+
+        ZeroMemory(&g_lightingPixelLightCBuffer, sizeof(LightingPixelLightCBufferStruct) * NUMBER_OF_LIGHTS);
+        for(int i =0; i < NUMBER_OF_LIGHTS; i++)
+        {
+            LightingPixelLightCBufferStruct &buffer = g_lightingPixelLightCBuffer[i];
+            buffer.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+            buffer.Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
+            buffer.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+            float radius = 5.0f;
+            float distX = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+            float distY = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+            float distZ = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+
+            buffer.Position = XMFLOAT3(distX, distY, distZ);
+
+            Vector3 pos(0.0f, 0.0f, -1.0f);
+            pos.Normalize();
+            buffer.Direction = XMFLOAT3(pos.x, pos.y, pos.z);
+            buffer.SpotAngle = XMConvertToRadians(30.0f);
+            buffer.ConstantAttenuation = 1.0f;
+            buffer.LinearAttenuation = 0.14f;
+            buffer.QuadraticAttenuation = 0.07f;
+            buffer.Type = LightType::Point;
+        }
+
         resourceData.pSysMem = &g_lightingPixelLightCBuffer;
 
         DX::ThrowIfFailed(device->CreateBuffer(&constantBufferDesc, &resourceData, &m_lightingPixelLightCBuffer));
