@@ -2,7 +2,7 @@
 #define POINT_LIGHT 1   
 #define SPOT_LIGHT 2
 
-#define NUMBER_OF_LIGHTS 5
+#define NUMBER_OF_LIGHTS 1
 
 Texture2D Texture0 : register(t0);
 Texture2D Texture1 : register(t1);
@@ -20,7 +20,7 @@ struct _Light
     float4 Diffuse;
     float4 Specular;
     float3 Position;
-    float Padding0;
+    float Intensity;
     float3 Direction;
     float SpotAngle;
     float ConstantAttenuation;
@@ -70,16 +70,20 @@ void DoGeneralLighting(inout LightingResult lightingResult,
                        float3 lightDirection, float3 normalDirection, float3 viewDirection)
 {
     // Ambient light
-    lightingResult.Ambient = materialAmbient * light.Ambient;
+    lightingResult.Ambient = materialAmbient * light.Ambient * light.Intensity;
 
     // Diffuse light
     float diffuseValue = max(dot(lightDirection, normalDirection), 0);
-    lightingResult.Diffuse = diffuseValue * materialDiffuse * light.Diffuse;
+    lightingResult.Diffuse = diffuseValue * materialDiffuse * light.Diffuse * light.Intensity;
 
     // Specular light
-    float3 reflectionDirection = normalize(reflect(-lightDirection, normalDirection));
-    float specularValue = pow(max(dot(viewDirection, reflectionDirection), 0), Material.Shininess);
-    lightingResult.Specular = specularValue * materialSpecular * light.Specular;
+    //float3 reflectionDirection = normalize(reflect(-lightDirection, normalDirection));
+    //float specularValue = pow(max(dot(viewDirection, reflectionDirection), 0), Material.Shininess);
+    
+    float3 halfwayDirection = normalize(-lightDirection + viewDirection);
+    float specularValue = pow(max(dot(normalDirection, halfwayDirection), 0), Material.Shininess);
+
+    lightingResult.Specular = specularValue * materialSpecular * light.Specular * light.Intensity;
 }
 
 LightingResult DoDirectionalLight(_Light light,

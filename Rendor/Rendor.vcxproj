@@ -181,6 +181,7 @@
     <Image Include="container2_specular.png" />
     <Image Include="directx.ico" />
     <Image Include="wall.jpg" />
+    <Image Include="wood.png" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="settings.manifest" />

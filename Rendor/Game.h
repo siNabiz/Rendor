@@ -60,11 +60,13 @@ private:
     // Shared for all vertex shaders
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_planeVertexBuffer;
 
     // For instanced vertex shader
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_instancedVertexShader;
     Microsoft::WRL::ComPtr<ID3D11InputLayout> m_instancedInputLayout;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_instanceVertexBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_planeInstanceVertexBuffer;
 
     // For simple vertex shader
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_simpleVertexShader;
@@ -93,8 +95,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D11SamplerState> m_samplerState;
 
     // For textures imported
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture_0;
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_texture_1;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_boxTexture_0;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_boxTexture_1;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_planeTexture;
 
     // For controlling the camera
     DirectX::SimpleMath::Vector3 m_cameraUp;

@@ -55,6 +55,9 @@
     <Image Include="container2_specular.png">
       <Filter>Data\Textures</Filter>
     </Image>
+    <Image Include="wood.png">
+      <Filter>Data\Textures</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="settings.manifest">

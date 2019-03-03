@@ -26,7 +26,7 @@ using namespace DirectX::SimpleMath;
 using Microsoft::WRL::ComPtr;
 
 #define USE_INDEXES 0
-#define NUMBER_OF_LIGHTS 5
+#define NUMBER_OF_LIGHTS 1
 
 int g_numInstances = 15;
 
@@ -55,7 +55,7 @@ typedef struct _lightingPixelLightCBufferStruct
     XMFLOAT4 Diffuse;           // 16 bytes
     XMFLOAT4 Specular;          // 16 bytes
     XMFLOAT3 Position;          // 12 bytes
-    float Padding0;             // 4 bytes
+    float Intensity;            // 4 bytes
     XMFLOAT3 Direction;         // 12 bytes
     float SpotAngle;            // 4 bytes
     float ConstantAttenuation;  // 4 bytes
@@ -73,7 +73,7 @@ typedef struct _lightingPixelMaterialCBufferStruct
     XMFLOAT4 Specular;      // 16 bytes
     float Shininess;        // 4 bytes
     int UseTexture;         // 4 bytes
-    float Padding[2];          // 8 bytes
+    float Padding[2];       // 8 bytes
 } LightingPixelMaterialCBufferStruct;
 
 LightingPixelMaterialCBufferStruct g_lightingPixelMaterialCBuffer =
@@ -121,7 +121,7 @@ __declspec(align(16)) typedef struct _instanceVertexBufferStruct
 } InstanceVertexBufferStruct;
 
 #if USE_INDEXES
-VertexBufferStruct g_vertices[8] =
+VertexBufferStruct g_boxVertices[8] =
 {
     XMFLOAT3(-0.5f, -0.5f,  0.5f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),
     XMFLOAT3( 0.5f, -0.5f,  0.5f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 0.0f),
@@ -133,7 +133,7 @@ VertexBufferStruct g_vertices[8] =
     XMFLOAT3(-0.5f,  0.5f, -0.5f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 1.0f)
 };
 
-WORD g_indices[36] =
+WORD g_boxIndices[36] =
 {
     0, 1, 2, // side 1
     2, 3, 0,
@@ -149,7 +149,7 @@ WORD g_indices[36] =
     1, 0, 4
 };
 #else
-VertexBufferStruct g_nonIndexedVertices[36] =
+VertexBufferStruct g_boxNonIndexedVertices[36] =
 {
     XMFLOAT3( 0.5f, -0.5f, -0.5f), XMFLOAT3( 0.0f,  0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), // 5
     XMFLOAT3(-0.5f, -0.5f, -0.5f), XMFLOAT3( 0.0f,  0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), // 4 
@@ -195,6 +195,22 @@ VertexBufferStruct g_nonIndexedVertices[36] =
 };
 #endif
 
+VertexBufferStruct g_planeNonIndexedVertices[12] =
+{
+    XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), // 3
+    XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f), // 2
+    XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f), // 6
+    XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f), // 6
+    XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f), // 7
+    XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),  // 3
+    XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 0.0f), // 4
+    XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 0.0f), // 5
+    XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 1.0f), // 1
+    XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 1.0f), // 1
+    XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 1.0f), // 0
+    XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 0.0f) // 4
+};
+
 Game::Game() noexcept(false)
 {
     m_deviceResources = std::make_unique<DX::DeviceResources>();
@@ -223,7 +239,7 @@ void Game::Initialize(HWND window, int width, int height)
     m_gamePad = std::make_unique<GamePad>();
 
     // for camera
-    m_cameraPos = Vector3(0.0f, 0.0f, 1.0f);
+    m_cameraPos = Vector3(0.0f, 1.0f, 1.0f);
     m_cameraPitch = 0.0f;
     m_cameraYaw = -90.0f;
     m_cameraFront = Vector3(XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarCos(XMConvertToRadians(m_cameraYaw)),
@@ -383,14 +399,24 @@ void Game::Render()
 
         context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
 
-        ID3D11ShaderResourceView* textures[2] = { m_texture_0.Get(), m_texture_1.Get() };
+        ID3D11ShaderResourceView* textures[2] = { m_boxTexture_0.Get(), m_boxTexture_1.Get() };
         context->PSSetShaderResources(0, 2, textures);
 
 #if USE_INDEXES
-        context->DrawIndexedInstanced(ARRAYSIZE(g_indices), g_numInstances, 0, 0, 0);
+        context->DrawIndexedInstanced(ARRAYSIZE(g_boxIndices), g_numInstances, 0, 0, 0);
 #else
-        context->DrawInstanced(ARRAYSIZE(g_nonIndexedVertices), g_numInstances, 0, 0);
+        context->DrawInstanced(ARRAYSIZE(g_boxNonIndexedVertices), g_numInstances, 0, 0);
 #endif
+
+        // Draw a plane
+        if (1)
+        {
+            ID3D11Buffer*const planeBuffers[] = { m_planeVertexBuffer.Get(), m_planeInstanceVertexBuffer.Get() };
+            context->IASetVertexBuffers(0, 2, planeBuffers, vertexStride, vertexOffset);
+            context->PSSetShaderResources(0, 1, m_planeTexture.GetAddressOf());
+
+            context->DrawInstanced(ARRAYSIZE(g_planeNonIndexedVertices), 1, 0, 0);
+        }
     }
 
     // draw the lamp
@@ -413,9 +439,9 @@ void Game::Render()
         context->PSSetConstantBuffers(0, 1, m_simplePixelCBuffer.GetAddressOf());
 
 #if USE_INDEXES
-        context->DrawIndexed(ARRAYSIZE(g_indices), 0, 0);
+        context->DrawIndexed(ARRAYSIZE(g_boxIndices), 0, 0);
 #else
-        context->Draw(ARRAYSIZE(g_nonIndexedVertices), 0);
+        context->Draw(ARRAYSIZE(g_boxNonIndexedVertices), 0);
 #endif
     }
 
@@ -589,10 +615,12 @@ void Game::CreateDeviceDependentResources()
             modelMatrix *= Matrix::CreateRotationX(randVal * XM_2PI);
             modelMatrix *= Matrix::CreateRotationY(randVal * XM_2PI);
             modelMatrix *= Matrix::CreateRotationZ(randVal * XM_2PI);
-            float distX = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * 5.0f;
-            float distY = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * 5.0f;
-            float distZ = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * 5.0f;
-            modelMatrix *= Matrix::CreateTranslation(distX, distY, distZ);
+            float radius = 5.0f;
+            Vector3 pos(0.0f, 0.0f, 0.0f);
+            pos.x = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+            pos.y = ((float)rand() / RAND_MAX) * radius * 0.5f;
+            pos.z = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+            modelMatrix *= Matrix::CreateTranslation(pos.x, pos.y, pos.z);
 
             instanceData[i].WorldMatrix = modelMatrix;
             instanceData[i].NormalMatrix = XMMatrixTranspose(XMMatrixInverse(nullptr, modelMatrix));
@@ -612,9 +640,9 @@ void Game::CreateDeviceDependentResources()
         D3D11_BUFFER_DESC vertexBufferDesc;
         ZeroMemory(&vertexBufferDesc, sizeof(D3D11_BUFFER_DESC));
 #if USE_INDEXES
-        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_vertices);
+        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_boxVertices);
 #else
-        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_nonIndexedVertices);
+        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_boxNonIndexedVertices);
 #endif
         vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
@@ -622,9 +650,9 @@ void Game::CreateDeviceDependentResources()
         D3D11_SUBRESOURCE_DATA resourceData;
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
 #if USE_INDEXES
-        resourceData.pSysMem = g_vertices;
+        resourceData.pSysMem = g_boxVertices;
 #else
-        resourceData.pSysMem = g_nonIndexedVertices;
+        resourceData.pSysMem = g_boxNonIndexedVertices;
 #endif
         
         DX::ThrowIfFailed(device->CreateBuffer(&vertexBufferDesc, &resourceData, &m_vertexBuffer));
@@ -635,17 +663,57 @@ void Game::CreateDeviceDependentResources()
     {
         D3D11_BUFFER_DESC indexBufferDesc;
         ZeroMemory(&indexBufferDesc, sizeof(D3D11_BUFFER_DESC));
-        indexBufferDesc.ByteWidth = sizeof(WORD) * ARRAYSIZE(g_indices);
+        indexBufferDesc.ByteWidth = sizeof(WORD) * ARRAYSIZE(g_boxIndices);
         indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
         indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
         D3D11_SUBRESOURCE_DATA resourceData;
         ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
-        resourceData.pSysMem = g_indices;
+        resourceData.pSysMem = g_boxIndices;
 
         DX::ThrowIfFailed(device->CreateBuffer(&indexBufferDesc, &resourceData, &m_indexBuffer));
     }
 #endif
+
+    // Setup plane per-instance buffer
+    {
+        D3D11_BUFFER_DESC instanceBufferDesc;
+        ZeroMemory(&instanceBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        instanceBufferDesc.ByteWidth = sizeof(InstanceVertexBufferStruct); // one element only
+        instanceBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        instanceBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        // Create and setup the per-instance buffer data
+        InstanceVertexBufferStruct* instanceData = (InstanceVertexBufferStruct*)_aligned_malloc(sizeof(InstanceVertexBufferStruct), 16);
+        ZeroMemory(instanceData, sizeof(instanceData));
+
+        Matrix modelMatrix = Matrix::CreateScale(20.f);
+        instanceData->WorldMatrix = modelMatrix;
+        instanceData->NormalMatrix = XMMatrixTranspose(XMMatrixInverse(nullptr, modelMatrix));
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = instanceData;
+
+        DX::ThrowIfFailed(device->CreateBuffer(&instanceBufferDesc, &resourceData, &m_planeInstanceVertexBuffer));
+
+        _aligned_free(instanceData);
+    }
+
+    // Setup vertex buffer
+    {
+        D3D11_BUFFER_DESC vertexBufferDesc;
+        ZeroMemory(&vertexBufferDesc, sizeof(D3D11_BUFFER_DESC));
+        vertexBufferDesc.ByteWidth = sizeof(VertexBufferStruct) * ARRAYSIZE(g_planeNonIndexedVertices);
+        vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA resourceData;
+        ZeroMemory(&resourceData, sizeof(D3D11_SUBRESOURCE_DATA));
+        resourceData.pSysMem = g_planeNonIndexedVertices;
+
+        DX::ThrowIfFailed(device->CreateBuffer(&vertexBufferDesc, &resourceData, &m_planeVertexBuffer));
+    }
 
     // Setup rasterizer state
     {
@@ -730,21 +798,24 @@ void Game::CreateDeviceDependentResources()
             buffer.Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
             buffer.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
-            float radius = 5.0f;
-            float distX = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
-            float distY = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
-            float distZ = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+            buffer.Intensity = 2.0f;
 
-            buffer.Position = XMFLOAT3(distX, distY, distZ);
+            float radius = 10.0f;
+            Vector3 pos(0.0f, 0.0f, 0.0f);
+            pos.x = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
+            pos.y = ((float)rand() / RAND_MAX) * radius * 0.5f;
+            pos.z = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
 
-            Vector3 pos(0.0f, 0.0f, -1.0f);
-            pos.Normalize();
-            buffer.Direction = XMFLOAT3(pos.x, pos.y, pos.z);
+            buffer.Position = XMFLOAT3(pos.x, pos.y, pos.z);
+
+            Vector3 dir(0.0f, -1.0f, -1.0f);
+            dir.Normalize();
+            buffer.Direction = XMFLOAT3(dir.x, dir.y, dir.z);
             buffer.SpotAngle = XMConvertToRadians(30.0f);
             buffer.ConstantAttenuation = 1.0f;
             buffer.LinearAttenuation = 0.14f;
             buffer.QuadraticAttenuation = 0.07f;
-            buffer.Type = LightType::Point;
+            buffer.Type = LightType::Directional;//(i % 2) ? LightType::Point : LightType::Spot;
         }
 
         resourceData.pSysMem = &g_lightingPixelLightCBuffer;
@@ -789,8 +860,9 @@ void Game::CreateDeviceDependentResources()
     }
 
     // Import textures
-    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"container2.png", nullptr, m_texture_0.ReleaseAndGetAddressOf()));
-    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"container2_specular.png", nullptr, m_texture_1.ReleaseAndGetAddressOf()));
+    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"container2.png", nullptr, m_boxTexture_0.ReleaseAndGetAddressOf()));
+    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"container2_specular.png", nullptr, m_boxTexture_1.ReleaseAndGetAddressOf()));
+    DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"wood.png", nullptr, m_planeTexture.ReleaseAndGetAddressOf()));
 }
 
 // Allocate all memory resources that change on a window SizeChanged event.
@@ -802,8 +874,9 @@ void Game::CreateWindowSizeDependentResources()
 void Game::OnDeviceLost()
 {
     // TODO: Add Direct3D resource cleanup here.
-    m_texture_0.Reset();
-    m_texture_1.Reset();
+    m_boxTexture_0.Reset();
+    m_boxTexture_1.Reset();
+    m_planeTexture.Reset();
 }
 
 void Game::OnDeviceRestored()
