@@ -6,10 +6,14 @@
 
 Texture2D Texture0 : register(t0);
 Texture2D Texture1 : register(t1);
+Texture2D TextureShadowMap : register(t2);
+
 sampler Sampler : register(s0);
+SamplerComparisonState SamplerShadowMap : register(s1);
 
 cbuffer AppData : register(b0)
 {
+    float4 ShadowMapTextureSize;
     float3 CameraPosition;
     float Padding;
 };
@@ -55,6 +59,7 @@ struct PS_INPUT
     float2 TexCoord : TEXCOORD0;
     float3 FragPosition : TEXCOORD1;
     float3 FragNormal : TEXCOORD2;
+    float4 FragPositionLightSpace : TEXCOORD3;
 };
 
 struct LightingResult
@@ -90,7 +95,7 @@ LightingResult DoDirectionalLight(_Light light,
                                   float4 materialAmbient, float4 materialDiffuse, float4 materialSpecular,
                                   float3 normalDirection, float3 viewDirection)
 {
-    LightingResult output;
+    LightingResult output = (LightingResult) 0;
 
     DoGeneralLighting(output, light, materialAmbient, materialDiffuse, materialSpecular, light.Direction, normalDirection, viewDirection);
 
@@ -101,7 +106,7 @@ void DoAttenuation(inout LightingResult lightingResult,
                    float lightDistance,
                    float constantAttenuation, float linearAttenuation, float quadraticAttenuation)
 {
-    float attenuation = 1.0f / (constantAttenuation +
+    float attenuation = 1.0 / (constantAttenuation +
                                 (linearAttenuation * lightDistance) +
                                 (quadraticAttenuation * lightDistance * lightDistance));
     
@@ -115,7 +120,7 @@ LightingResult DoPointLight(_Light light,
                             float3 lightDirection, float3 normalDirection, float3 viewDirection,
                             float lightDistance)
 {
-    LightingResult output;
+    LightingResult output = (LightingResult) 0;
 
     DoGeneralLighting(output, light, materialAmbient, materialDiffuse, materialSpecular, lightDirection, normalDirection, viewDirection);
     DoAttenuation(output, lightDistance, light.ConstantAttenuation, light.LinearAttenuation, light.QuadraticAttenuation);
@@ -127,7 +132,7 @@ void DoSpotAngle(inout LightingResult lightingResult,
                  float3 lightDirection, float3 lightSpotDirection, float lightSpotAngle)
 {
     float minCos = cos(lightSpotAngle);
-    float maxCos = (1.0f + minCos) * 0.5f;
+    float maxCos = (1.0 + minCos) * 0.5;
     float cosValue = dot(lightSpotDirection, -lightDirection);
 
     float attenuation = smoothstep(minCos, maxCos, cosValue);
@@ -142,13 +147,38 @@ LightingResult DoSpotLight(_Light light,
                            float3 lightDirection, float3 normalDirection, float3 viewDirection,
                            float lightDistance)
 {
-    LightingResult output;
+    LightingResult output = (LightingResult) 0;
 
     DoGeneralLighting(output, light, materialAmbient, materialDiffuse, materialSpecular, lightDirection, normalDirection, viewDirection);
     DoAttenuation(output, lightDistance, light.ConstantAttenuation, light.LinearAttenuation, light.QuadraticAttenuation);
     DoSpotAngle(output, lightDirection, light.Direction, light.SpotAngle);
 
     return output;
+}
+
+void DoShadow(inout LightingResult lightingResult,
+              float4 fragPositionLightSpace, _Light light, float3 normalDirection)
+{
+    float3 projCoords = fragPositionLightSpace.xyz / fragPositionLightSpace.w;
+    projCoords.xy = projCoords.xy * 0.5 + 0.5;
+    projCoords.y = 1.0 - projCoords.y;
+
+    float bias = max(0.001 * (1.0 - dot(light.Direction, normalDirection)), 0.005);
+
+    float shadowFactor = 0.0;
+    for (int x = -2; x <= 2; ++x)
+    {
+        for (int y = -2; y <= 2; ++y)
+        {
+            shadowFactor += TextureShadowMap.SampleCmpLevelZero(SamplerShadowMap, projCoords.xy, projCoords.z - bias, int2(x, y)).x;
+        }
+    }
+    shadowFactor /= 9.0;
+
+    //float shadowFactor = TextureShadowMap.SampleCmpLevelZero(SamplerShadowMap, projCoords.xy, projCoords.z - bias);
+
+    lightingResult.Diffuse *= (1.0 - shadowFactor);
+    lightingResult.Specular *= (1.0 - shadowFactor);
 }
 
 float4 main(PS_INPUT IN) : SV_TARGET
@@ -182,7 +212,7 @@ float4 main(PS_INPUT IN) : SV_TARGET
         _Light light = Lights[i];
         float lightDistance = length(light.Position - IN.FragPosition);
         float3 lightDirection = normalize(light.Position - IN.FragPosition);
-        LightingResult output;
+        LightingResult output = (LightingResult) 0;
         switch (light.Type)
         {
             case (DIRECTIONAL_LIGHT):
@@ -203,6 +233,8 @@ float4 main(PS_INPUT IN) : SV_TARGET
             default:
                 break;
         }
+
+        DoShadow(output, IN.FragPositionLightSpace, light, normalDirection);
 
         result.Ambient += output.Ambient;
         result.Diffuse += output.Diffuse;

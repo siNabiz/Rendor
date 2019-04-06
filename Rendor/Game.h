@@ -44,8 +44,15 @@ private:
 
     void Clear();
 
+    void ShadowMapClear();
+
+    void ShadowMapRender(DirectX::SimpleMath::Matrix viewMatrix, DirectX::SimpleMath::Matrix projectionMatrix);
+
     void CreateDeviceDependentResources();
     void CreateWindowSizeDependentResources();
+
+    // check if initialized
+    bool initHappened = false;
 
     // Device resources.
     std::unique_ptr<DX::DeviceResources>    m_deviceResources;
@@ -98,7 +105,23 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_boxTexture_0;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_boxTexture_1;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_planeTexture;
+    
+    /// Shadow map parameters
+    // texture
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_shadowMapTexture;
 
+    // render target view
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_shadowMapDSV;
+
+    // shader resource view
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_shadowMapSRV;
+
+    // sampler state
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_shadowMapSamplerState;
+
+    // viewport
+    D3D11_VIEWPORT m_shadowMapViewport;
+    
     // For controlling the camera
     DirectX::SimpleMath::Vector3 m_cameraUp;
     DirectX::SimpleMath::Vector3 m_cameraPos;

@@ -27,17 +27,21 @@ using Microsoft::WRL::ComPtr;
 
 #define USE_INDEXES 0
 #define NUMBER_OF_LIGHTS 1
+#define SHADOW_MAP_HEIGHT 1024
+#define SHADOW_MAP_WIDTH 1024
 
-int g_numInstances = 15;
+int g_numInstances = 3;
 
 typedef struct _lightingPixelCBufferStruct
 {
-    XMFLOAT3 CameraPostion; // 12 bytes
-    float Padding;          // 4 bytes
+    XMFLOAT4 ShadowMapTextureSize; // 16 bytes
+    XMFLOAT3 CameraPostion;        // 12 bytes
+    float Padding;                 // 4 bytes
 } LightingPixelCBufferStruct;
 
 LightingPixelCBufferStruct g_lightingPixelCBuffer =
 {
+    XMFLOAT4(SHADOW_MAP_WIDTH, SHADOW_MAP_HEIGHT, 1.0f / float(SHADOW_MAP_WIDTH), 1.0f / float(SHADOW_MAP_HEIGHT)),
     XMFLOAT3(0.0f, 0.0f, 0.0f),
     1.0f
 };
@@ -78,11 +82,11 @@ typedef struct _lightingPixelMaterialCBufferStruct
 
 LightingPixelMaterialCBufferStruct g_lightingPixelMaterialCBuffer =
 {
-    // Jade material
-    XMFLOAT4(0.135f, 0.2225f, 0.1575f, 1.0f),
-    XMFLOAT4(0.54f, 0.89f, 0.63f, 1.0f),
-    XMFLOAT4(0.316228f, 0.316228f, 0.316228f, 1.0f),
-    12.8f,
+    // green rubber
+    XMFLOAT4(0.0f, 0.05f, 0.0f, 1.0f),
+    XMFLOAT4(0.4f, 0.5f, 0.4f, 1.0f),
+    XMFLOAT4(0.04f, 0.7f, 0.04f, 1.0f),
+    10.0f,
     1,
     {0.0f, 0.0f}
 };
@@ -99,7 +103,8 @@ SimplePixelCBufferStruct g_simplePixelCBuffer =
 
 typedef struct _vertexCBufferStruct
 {
-    XMMATRIX MVPMatrix; // 64 bytes (4*16 bytes)
+    XMMATRIX MVPMatrix;         // 64 bytes (4*16 bytes)
+    XMMATRIX LightSpaceVPMatrix;  // 64 bytes (4*16 bytes)
 } VertexCBufferStruct;
 
 VertexCBufferStruct g_vertexCBuffer =
@@ -116,7 +121,7 @@ typedef struct _vertexBufferStruct
 
 __declspec(align(16)) typedef struct _instanceVertexBufferStruct
 {
-    XMMATRIX WorldMatrix;
+    XMMATRIX ModelMatrix;
     XMMATRIX NormalMatrix;
 } InstanceVertexBufferStruct;
 
@@ -195,20 +200,20 @@ VertexBufferStruct g_boxNonIndexedVertices[36] =
 };
 #endif
 
-VertexBufferStruct g_planeNonIndexedVertices[12] =
+VertexBufferStruct g_planeNonIndexedVertices[6] =
 {
     XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), // 3
     XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f), // 2
     XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f), // 6
     XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f), // 6
     XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f), // 7
-    XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f),  // 3
-    XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 0.0f), // 4
-    XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 0.0f), // 5
-    XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 1.0f), // 1
-    XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 1.0f), // 1
-    XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 1.0f), // 0
-    XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3( 0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 0.0f) // 4
+    XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f)//,  // 3
+    //XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 0.0f), // 4
+    //XMFLOAT3( 0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 0.0f), // 5
+    //XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 1.0f), // 1
+    //XMFLOAT3( 0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, -1.0f,  0.0f), XMFLOAT2(1.0f, 1.0f), // 1
+    //XMFLOAT3(-0.5f, 0.0f,  0.5f), XMFLOAT3(0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 1.0f), // 0
+    //XMFLOAT3(-0.5f, 0.0f, -0.5f), XMFLOAT3(0.0f, -1.0f,  0.0f), XMFLOAT2(0.0f, 0.0f) // 4
 };
 
 Game::Game() noexcept(false)
@@ -220,6 +225,8 @@ Game::Game() noexcept(false)
 // Initialize the Direct3D resources required to run.
 void Game::Initialize(HWND window, int width, int height)
 {
+    initHappened = true;
+
     m_deviceResources->SetWindow(window, width, height);
 
     m_deviceResources->CreateDeviceResources();
@@ -239,7 +246,7 @@ void Game::Initialize(HWND window, int width, int height)
     m_gamePad = std::make_unique<GamePad>();
 
     // for camera
-    m_cameraPos = Vector3(0.0f, 1.0f, 1.0f);
+    m_cameraPos = Vector3(0.0f, 5.0f, 5.0f);
     m_cameraPitch = 0.0f;
     m_cameraYaw = -90.0f;
     m_cameraFront = Vector3(XMScalarCos(XMConvertToRadians(m_cameraPitch))*XMScalarCos(XMConvertToRadians(m_cameraYaw)),
@@ -354,12 +361,22 @@ void Game::Render()
         return;
     }
 
+    // Update light space information //
+    Vector3 pos = -5 * g_lightingPixelLightCBuffer[0].Direction;
+    Matrix lightViewMatrix = Matrix::CreateLookAt(pos, Vector3(0.0f), Vector3(0.0f, 1.0f, 0.0f));
+
+    float nearPlane = 0.1f;
+    float farPlane = 100.0f;
+    Matrix lightProjectionMatrix = SimpleMath::Matrix::CreateOrthographic(30.0f, 30.0f, nearPlane, farPlane);
+    ///////////////////////////////
+
+    ShadowMapRender(lightViewMatrix, lightProjectionMatrix);
+
     Clear();
 
     m_deviceResources->PIXBeginEvent(L"Render");
     auto context = m_deviceResources->GetD3DDeviceContext();
 
-    // TODO: Add your rendering code here.
 #if USE_INDEXES
     context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
 #endif
@@ -386,9 +403,14 @@ void Game::Render()
 
         VertexCBufferStruct vertexCBuffer;
         vertexCBuffer.MVPMatrix = viewMatrix * projectionMatrix;
+        vertexCBuffer.LightSpaceVPMatrix = lightViewMatrix * lightProjectionMatrix;
         context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
 
         context->PSSetShader(m_lightingPixelShader.Get(), nullptr, 0);
+
+        LightingPixelMaterialCBufferStruct lightingPixelMaterialCBufferTemp = g_lightingPixelMaterialCBuffer;
+        lightingPixelMaterialCBufferTemp.UseTexture = 1;
+        context->UpdateSubresource(m_lightingPixelMaterialCBuffer.Get(), 0, nullptr, &lightingPixelMaterialCBufferTemp, 0, 0);
 
         ID3D11Buffer*const pixelCBuffers[] = { m_lightingPixelCBuffer.Get(), m_lightingPixelLightCBuffer.Get(),m_lightingPixelMaterialCBuffer.Get() };
         context->PSSetConstantBuffers(0, 3, pixelCBuffers);
@@ -397,10 +419,11 @@ void Game::Render()
         lightingCBuffer.CameraPostion = XMFLOAT3(m_cameraPos.x, m_cameraPos.y, m_cameraPos.z);
         context->UpdateSubresource(m_lightingPixelCBuffer.Get(), 0, nullptr, &lightingCBuffer, 0, 0);
 
-        context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
+        ID3D11SamplerState * samplerStates[] = { m_samplerState.Get(), m_shadowMapSamplerState.Get() };
+        context->PSSetSamplers(0, 2, samplerStates);
 
-        ID3D11ShaderResourceView* textures[2] = { m_boxTexture_0.Get(), m_boxTexture_1.Get() };
-        context->PSSetShaderResources(0, 2, textures);
+        ID3D11ShaderResourceView* textures[] = { m_boxTexture_0.Get(), m_boxTexture_1.Get(), m_shadowMapSRV.Get() };
+        context->PSSetShaderResources(0, 3, textures);
 
 #if USE_INDEXES
         context->DrawIndexedInstanced(ARRAYSIZE(g_boxIndices), g_numInstances, 0, 0, 0);
@@ -409,11 +432,16 @@ void Game::Render()
 #endif
 
         // Draw a plane
-        if (1)
         {
             ID3D11Buffer*const planeBuffers[] = { m_planeVertexBuffer.Get(), m_planeInstanceVertexBuffer.Get() };
             context->IASetVertexBuffers(0, 2, planeBuffers, vertexStride, vertexOffset);
-            context->PSSetShaderResources(0, 1, m_planeTexture.GetAddressOf());
+
+            ID3D11ShaderResourceView* planeTextures[] = { m_planeTexture.Get(), m_planeTexture.Get(), m_shadowMapSRV.Get() };
+            context->PSSetShaderResources(0, 3, planeTextures);
+
+            LightingPixelMaterialCBufferStruct lightingPixelMaterialCBufferTemp = g_lightingPixelMaterialCBuffer;
+            lightingPixelMaterialCBufferTemp.UseTexture = 0;
+            context->UpdateSubresource(m_lightingPixelMaterialCBuffer.Get(), 0, nullptr, &lightingPixelMaterialCBufferTemp, 0, 0);
 
             context->DrawInstanced(ARRAYSIZE(g_planeNonIndexedVertices), 1, 0, 0);
         }
@@ -426,7 +454,7 @@ void Game::Render()
         context->IASetInputLayout(m_simpleInputLayout.Get());
         context->VSSetShader(m_simpleVertexShader.Get(), nullptr, 0);
 
-        XMFLOAT3 postion = g_lightingPixelLightCBuffer[i].Position;
+        XMFLOAT3 postion = -5 * g_lightingPixelLightCBuffer[i].Direction;//g_lightingPixelLightCBuffer[i].Position;
 
         Matrix modelMatrix = Matrix::CreateScale(0.2f);
         modelMatrix *= Matrix::CreateTranslation(postion.x, postion.y, postion.z);
@@ -444,6 +472,12 @@ void Game::Render()
         context->Draw(ARRAYSIZE(g_boxNonIndexedVertices), 0);
 #endif
     }
+    
+    ID3D11ShaderResourceView* nullSRV[3] = { nullptr, nullptr, nullptr };
+    context->PSSetShaderResources(0, 3, nullSRV);
+
+    ID3D11PixelShader* nullPS = nullptr;
+    context->PSSetShader(nullPS, nullptr, 0);
 
     m_deviceResources->PIXEndEvent();
 
@@ -477,6 +511,70 @@ void Game::Clear()
 
     m_deviceResources->PIXEndEvent();
 }
+
+void Game::ShadowMapRender(Matrix viewMatrix, Matrix projectionMatrix)
+{
+    ShadowMapClear();
+
+    m_deviceResources->PIXBeginEvent(L"Shadow Map Render");
+    auto context = m_deviceResources->GetD3DDeviceContext();
+
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    context->VSSetConstantBuffers(0, 1, m_vertexCBuffer.GetAddressOf());
+
+    ID3D11Buffer*const buffers[] = { m_vertexBuffer.Get(), m_instanceVertexBuffer.Get() };
+    const UINT vertexStride[] = { sizeof(VertexBufferStruct), sizeof(InstanceVertexBufferStruct) };
+    const UINT vertexOffset[] = { 0, 0 };
+
+    // draw other objects
+    {
+        context->IASetVertexBuffers(0, 2, buffers, vertexStride, vertexOffset);
+        context->IASetInputLayout(m_instancedInputLayout.Get());
+        context->VSSetShader(m_instancedVertexShader.Get(), nullptr, 0);
+
+        VertexCBufferStruct vertexCBuffer;
+        vertexCBuffer.MVPMatrix = viewMatrix * projectionMatrix;
+        context->UpdateSubresource(m_vertexCBuffer.Get(), 0, nullptr, &vertexCBuffer, 0, 0);
+
+#if USE_INDEXES
+        context->DrawIndexedInstanced(ARRAYSIZE(g_boxIndices), g_numInstances, 0, 0, 0);
+#else
+        context->DrawInstanced(ARRAYSIZE(g_boxNonIndexedVertices), g_numInstances, 0, 0);
+#endif
+
+        // Draw a plane
+        {
+            ID3D11Buffer*const planeBuffers[] = { m_planeVertexBuffer.Get(), m_planeInstanceVertexBuffer.Get() };
+            context->IASetVertexBuffers(0, 2, planeBuffers, vertexStride, vertexOffset);
+
+            context->DrawInstanced(ARRAYSIZE(g_planeNonIndexedVertices), 1, 0, 0);
+        }
+    }
+
+    m_deviceResources->PIXEndEvent();
+}
+
+// Helper method to clear the shadow map buffers
+void Game::ShadowMapClear()
+{
+    m_deviceResources->PIXBeginEvent(L"Shadow Map Clear");
+
+    // Clear the views.
+    auto context = m_deviceResources->GetD3DDeviceContext();
+
+    context->ClearDepthStencilView(m_shadowMapDSV.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    context->OMSetRenderTargets(0, nullptr, m_shadowMapDSV.Get());
+
+    // Set the rasterizer state
+    context->RSSetState(m_rasterizerState.Get());
+
+    // Set the viewport.
+    context->RSSetViewports(1, &m_shadowMapViewport);
+
+    m_deviceResources->PIXEndEvent();
+}
 #pragma endregion
 
 #pragma region Message Handlers
@@ -484,9 +582,11 @@ void Game::Clear()
 void Game::OnActivated()
 {
     // TODO: Game is becoming active window.
-
-    m_gamePad->Resume();
-    m_buttons.Reset();
+    if (!initHappened)
+    {
+        m_gamePad->Resume();
+        m_buttons.Reset();
+    }
 }
 
 void Game::OnDeactivated()
@@ -622,7 +722,7 @@ void Game::CreateDeviceDependentResources()
             pos.z = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
             modelMatrix *= Matrix::CreateTranslation(pos.x, pos.y, pos.z);
 
-            instanceData[i].WorldMatrix = modelMatrix;
+            instanceData[i].ModelMatrix = modelMatrix;
             instanceData[i].NormalMatrix = XMMatrixTranspose(XMMatrixInverse(nullptr, modelMatrix));
         }
 
@@ -688,7 +788,7 @@ void Game::CreateDeviceDependentResources()
         ZeroMemory(instanceData, sizeof(instanceData));
 
         Matrix modelMatrix = Matrix::CreateScale(20.f);
-        instanceData->WorldMatrix = modelMatrix;
+        instanceData->ModelMatrix = modelMatrix;
         instanceData->NormalMatrix = XMMatrixTranspose(XMMatrixInverse(nullptr, modelMatrix));
 
         D3D11_SUBRESOURCE_DATA resourceData;
@@ -794,9 +894,9 @@ void Game::CreateDeviceDependentResources()
         for(int i =0; i < NUMBER_OF_LIGHTS; i++)
         {
             LightingPixelLightCBufferStruct &buffer = g_lightingPixelLightCBuffer[i];
-            buffer.Ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-            buffer.Diffuse = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
-            buffer.Specular = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+            buffer.Ambient = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+            buffer.Diffuse = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
+            buffer.Specular = XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f);
 
             buffer.Intensity = 2.0f;
 
@@ -863,6 +963,72 @@ void Game::CreateDeviceDependentResources()
     DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"container2.png", nullptr, m_boxTexture_0.ReleaseAndGetAddressOf()));
     DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"container2_specular.png", nullptr, m_boxTexture_1.ReleaseAndGetAddressOf()));
     DX::ThrowIfFailed(CreateWICTextureFromFile(device, L"wood.png", nullptr, m_planeTexture.ReleaseAndGetAddressOf()));
+
+    // Setup shadow map texture + render target view + shader resource view
+    // SRV (wraps textures in a format that shaders can access them)
+    // RTV (enable a scene to be rendered to a temporary intermediate buffer, rather than to the back buffer to be rendered to the screen)
+    {
+        // texture setup
+        D3D11_TEXTURE2D_DESC shadowMapTextureDesc;
+        ZeroMemory(&shadowMapTextureDesc, sizeof(D3D11_TEXTURE2D_DESC));
+        shadowMapTextureDesc.Width = SHADOW_MAP_WIDTH;
+        shadowMapTextureDesc.Height = SHADOW_MAP_HEIGHT;
+        shadowMapTextureDesc.MipLevels = 1;
+        shadowMapTextureDesc.ArraySize = 1;
+        shadowMapTextureDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+        shadowMapTextureDesc.SampleDesc.Count = 1;
+        shadowMapTextureDesc.SampleDesc.Quality = 0;
+        shadowMapTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+        shadowMapTextureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+        shadowMapTextureDesc.CPUAccessFlags = 0;
+        shadowMapTextureDesc.MiscFlags = 0;
+
+        DX::ThrowIfFailed(device->CreateTexture2D(&shadowMapTextureDesc, nullptr, &m_shadowMapTexture));
+
+        // RTV setup
+        D3D11_DEPTH_STENCIL_VIEW_DESC shadowMapDSVDesc;
+        ZeroMemory(&shadowMapDSVDesc, sizeof(D3D11_DEPTH_STENCIL_VIEW_DESC));
+        shadowMapDSVDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        shadowMapDSVDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        shadowMapDSVDesc.Texture2D.MipSlice = 0;
+
+        DX::ThrowIfFailed(device->CreateDepthStencilView(m_shadowMapTexture.Get(), &shadowMapDSVDesc, &m_shadowMapDSV));
+
+        // SRV setup
+        D3D11_SHADER_RESOURCE_VIEW_DESC shadowMapSRVDesc;
+        ZeroMemory(&shadowMapSRVDesc, sizeof(D3D11_SHADER_RESOURCE_VIEW_DESC));
+        shadowMapSRVDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        shadowMapSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        shadowMapSRVDesc.Texture2D.MipLevels = 1;
+        shadowMapSRVDesc.Texture2D.MostDetailedMip = 0;
+
+        DX::ThrowIfFailed(device->CreateShaderResourceView(m_shadowMapTexture.Get(), &shadowMapSRVDesc, &m_shadowMapSRV));
+
+        // Setup sampler state
+        D3D11_SAMPLER_DESC shadowMapSamplerStateDesc;
+        ZeroMemory(&shadowMapSamplerStateDesc, sizeof(D3D11_SAMPLER_DESC));
+        shadowMapSamplerStateDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+        shadowMapSamplerStateDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+        shadowMapSamplerStateDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+        shadowMapSamplerStateDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+        shadowMapSamplerStateDesc.MipLODBias = 0.0f;
+        shadowMapSamplerStateDesc.MaxAnisotropy = 0;
+        shadowMapSamplerStateDesc.ComparisonFunc = D3D11_COMPARISON_GREATER_EQUAL;
+        shadowMapSamplerStateDesc.BorderColor[0] = 1.0f;
+        shadowMapSamplerStateDesc.BorderColor[1] = 1.0f;
+        shadowMapSamplerStateDesc.BorderColor[2] = 1.0f;
+        shadowMapSamplerStateDesc.BorderColor[3] = 1.0f;
+        shadowMapSamplerStateDesc.MinLOD = 0.0f;
+        shadowMapSamplerStateDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+        DX::ThrowIfFailed(device->CreateSamplerState(&shadowMapSamplerStateDesc, &m_shadowMapSamplerState));
+
+        ZeroMemory(&m_shadowMapViewport, sizeof(D3D11_VIEWPORT));
+        m_shadowMapViewport.Width = SHADOW_MAP_WIDTH;
+        m_shadowMapViewport.Height = SHADOW_MAP_HEIGHT;
+        m_shadowMapViewport.MinDepth = 0.0f;
+        m_shadowMapViewport.MaxDepth = 1.0f;
+    }
 }
 
 // Allocate all memory resources that change on a window SizeChanged event.
