@@ -166,14 +166,18 @@ void DoShadow(inout LightingResult lightingResult,
     float bias = max(0.001 * (1.0 - dot(light.Direction, normalDirection)), 0.005);
 
     float shadowFactor = 0.0;
+    float weightTotal = 0.0;
     for (int x = -2; x <= 2; ++x)
     {
         for (int y = -2; y <= 2; ++y)
         {
-            shadowFactor += TextureShadowMap.SampleCmpLevelZero(SamplerShadowMap, projCoords.xy, projCoords.z - bias, int2(x, y)).x;
+            int2 offset = int2(x, y);
+            float weight = 1.0 / (1.0 + length(offset));
+            shadowFactor += weight * TextureShadowMap.SampleCmpLevelZero(SamplerShadowMap, projCoords.xy, projCoords.z - bias, offset).x;
+            weightTotal += weight;
         }
     }
-    shadowFactor /= 9.0;
+    shadowFactor /= weightTotal;
 
     //float shadowFactor = TextureShadowMap.SampleCmpLevelZero(SamplerShadowMap, projCoords.xy, projCoords.z - bias);
 
