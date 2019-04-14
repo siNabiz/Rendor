@@ -27,10 +27,10 @@ using Microsoft::WRL::ComPtr;
 
 #define USE_INDEXES 0
 #define NUMBER_OF_LIGHTS 1
-#define SHADOW_MAP_HEIGHT 1024
-#define SHADOW_MAP_WIDTH 1024
+#define SHADOW_MAP_HEIGHT 2048
+#define SHADOW_MAP_WIDTH 2048
 
-int g_numInstances = 3;
+int g_numInstances = 10;
 
 typedef struct _lightingPixelCBufferStruct
 {
@@ -362,12 +362,18 @@ void Game::Render()
     }
 
     // Update light space information //
-    Vector3 pos = -5 * g_lightingPixelLightCBuffer[0].Direction;
-    Matrix lightViewMatrix = Matrix::CreateLookAt(pos, Vector3(0.0f), Vector3(0.0f, 1.0f, 0.0f));
+    Vector3 pos = -10.0f * g_lightingPixelLightCBuffer[0].Direction;
+    Vector3 up = Vector3(0.0f, 1.0f, 0.0f);
+    if (up.Cross(pos) == Vector3::Zero)
+    {
+        up = Vector3(0.0f, 0.0f, 1.0f);
+    }
+    Matrix lightViewMatrix = Matrix::CreateLookAt(pos, Vector3(0.0f), up);
 
     float nearPlane = 0.1f;
-    float farPlane = 100.0f;
-    Matrix lightProjectionMatrix = SimpleMath::Matrix::CreateOrthographic(30.0f, 30.0f, nearPlane, farPlane);
+    float farPlane = 20.0f;
+    //Matrix lightProjectionMatrix = SimpleMath::Matrix::CreateOrthographic(30.0f, 30.0f, nearPlane, farPlane);
+    Matrix lightProjectionMatrix = SimpleMath::Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(60.0f), 1.0f, nearPlane, farPlane);
     ///////////////////////////////
 
     ShadowMapRender(lightViewMatrix, lightProjectionMatrix);
@@ -454,7 +460,7 @@ void Game::Render()
         context->IASetInputLayout(m_simpleInputLayout.Get());
         context->VSSetShader(m_simpleVertexShader.Get(), nullptr, 0);
 
-        XMFLOAT3 postion = -5 * g_lightingPixelLightCBuffer[i].Direction;//g_lightingPixelLightCBuffer[i].Position;
+        XMFLOAT3 postion = -10.0f * g_lightingPixelLightCBuffer[i].Direction;//g_lightingPixelLightCBuffer[i].Position;
 
         Matrix modelMatrix = Matrix::CreateScale(0.2f);
         modelMatrix *= Matrix::CreateTranslation(postion.x, postion.y, postion.z);
@@ -907,15 +913,18 @@ void Game::CreateDeviceDependentResources()
             pos.z = ((2.0f * (float)rand() / RAND_MAX) - 1.0f) * radius;
 
             buffer.Position = XMFLOAT3(pos.x, pos.y, pos.z);
-
+            
             Vector3 dir(0.0f, -1.0f, -1.0f);
             dir.Normalize();
             buffer.Direction = XMFLOAT3(dir.x, dir.y, dir.z);
-            buffer.SpotAngle = XMConvertToRadians(30.0f);
+            buffer.Position = -10.0f * buffer.Direction; // TODO:: remove this later
+            buffer.SpotAngle = XMConvertToRadians(60.0f);
             buffer.ConstantAttenuation = 1.0f;
-            buffer.LinearAttenuation = 0.14f;
-            buffer.QuadraticAttenuation = 0.07f;
-            buffer.Type = LightType::Directional;//(i % 2) ? LightType::Point : LightType::Spot;
+            buffer.LinearAttenuation = 0.0f;//0.14f;
+            buffer.QuadraticAttenuation = 0.0f;//0.07f;
+            //buffer.Type = (i % 2) ? LightType::Point : LightType::Spot;
+            //buffer.Type = LightType::Directional;
+            buffer.Type = LightType::Spot;
         }
 
         resourceData.pSysMem = &g_lightingPixelLightCBuffer;
@@ -1007,7 +1016,8 @@ void Game::CreateDeviceDependentResources()
         // Setup sampler state
         D3D11_SAMPLER_DESC shadowMapSamplerStateDesc;
         ZeroMemory(&shadowMapSamplerStateDesc, sizeof(D3D11_SAMPLER_DESC));
-        shadowMapSamplerStateDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+        shadowMapSamplerStateDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+        //shadowMapSamplerStateDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
         shadowMapSamplerStateDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
         shadowMapSamplerStateDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
         shadowMapSamplerStateDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;

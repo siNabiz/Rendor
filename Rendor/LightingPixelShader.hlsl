@@ -163,7 +163,7 @@ void DoShadow(inout LightingResult lightingResult,
     projCoords.xy = projCoords.xy * 0.5 + 0.5;
     projCoords.y = 1.0 - projCoords.y;
 
-    float bias = max(0.001 * (1.0 - dot(light.Direction, normalDirection)), 0.005);
+    float bias = max(0.0001 * (1.0 - dot(light.Direction, normalDirection)), 0.0001);
 
     float shadowFactor = 0.0;
     float weightTotal = 0.0;
